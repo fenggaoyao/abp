@@ -61,6 +61,11 @@ namespace Volo.Abp.Cli.Commands
                 );
             }
 
+            if (!ProjectNameValidator.IsValid(projectName))
+            {
+                throw new CliUsageException("The project name is invalid! Please specify a different name.");
+            }
+
             Logger.LogInformation("Creating your project...");
             Logger.LogInformation("Project name: " + projectName);
 
@@ -89,7 +94,7 @@ namespace Volo.Abp.Cli.Commands
             var preview = commandLineArgs.Options.ContainsKey(Options.Preview.Long);
             if (preview)
             {
-                Logger.LogInformation("Preview: yes if any exist for next version.");
+                Logger.LogInformation("Preview: yes");
             }
 
             var databaseProvider = GetDatabaseProvider(commandLineArgs);
@@ -274,13 +279,17 @@ namespace Volo.Abp.Cli.Commands
 
         private UiFramework FindMicroserviceSolutionUiFramework(string outputFolderRoot)
         {
-            if (Directory.Exists(Path.Combine(outputFolderRoot, "applications", "blazor")))
+            if (Directory.Exists(Path.Combine(outputFolderRoot, "apps", "blazor")))
             {
                 return UiFramework.Blazor;
             }
-            if (Directory.Exists(Path.Combine(outputFolderRoot, "applications", "web")))
+            if (Directory.Exists(Path.Combine(outputFolderRoot, "apps", "web")))
             {
                 return UiFramework.Mvc;
+            }
+            if (Directory.Exists(Path.Combine(outputFolderRoot, "apps", "angular")))
+            {
+                return UiFramework.Angular;
             }
 
             return UiFramework.None;
@@ -415,8 +424,8 @@ namespace Volo.Abp.Cli.Commands
                     return DatabaseManagementSystem.OracleDevart;
                 case "sqlite":
                     return DatabaseManagementSystem.SQLite;
-                case "oracle": // Currently disabled. See https://github.com/abpframework/abp/issues/6513
-                    // return DatabaseManagementSystem.Oracle;
+                case "oracle":
+                    return DatabaseManagementSystem.Oracle;
                 default:
                     return DatabaseManagementSystem.NotSpecified;
             }
@@ -440,6 +449,8 @@ namespace Volo.Abp.Cli.Commands
                     return UiFramework.Angular;
                 case "blazor":
                     return UiFramework.Blazor;
+                case "blazor-server":
+                    return UiFramework.BlazorServer;
                 default:
                     return UiFramework.NotSpecified;
             }

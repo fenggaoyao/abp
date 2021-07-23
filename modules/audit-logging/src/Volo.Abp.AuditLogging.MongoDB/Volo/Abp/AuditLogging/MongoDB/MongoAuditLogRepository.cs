@@ -30,6 +30,7 @@ namespace Volo.Abp.AuditLogging.MongoDB
             DateTime? endTime = null,
             string httpMethod = null,
             string url = null,
+            Guid? userId = null,
             string userName = null,
             string applicationName = null,
             string correlationId = null,
@@ -45,6 +46,7 @@ namespace Volo.Abp.AuditLogging.MongoDB
                 endTime,
                 httpMethod,
                 url,
+                userId,
                 userName,
                 applicationName,
                 correlationId,
@@ -56,7 +58,9 @@ namespace Volo.Abp.AuditLogging.MongoDB
                 cancellationToken
             );
 
-            return await query.OrderBy(sorting ?? "executionTime desc").As<IMongoQueryable<AuditLog>>()
+            return await query
+                .OrderBy(sorting.IsNullOrWhiteSpace() ? (nameof(AuditLog.ExecutionTime) + " DESC") : sorting)
+                .As<IMongoQueryable<AuditLog>>()
                 .PageBy<AuditLog, IMongoQueryable<AuditLog>>(skipCount, maxResultCount)
                 .ToListAsync(GetCancellationToken(cancellationToken));
         }
@@ -66,6 +70,7 @@ namespace Volo.Abp.AuditLogging.MongoDB
             DateTime? endTime = null,
             string httpMethod = null,
             string url = null,
+            Guid? userId = null,
             string userName = null,
             string applicationName = null,
             string correlationId = null,
@@ -80,6 +85,7 @@ namespace Volo.Abp.AuditLogging.MongoDB
                 endTime,
                 httpMethod,
                 url,
+                userId,
                 userName,
                 applicationName,
                 correlationId,
@@ -101,6 +107,7 @@ namespace Volo.Abp.AuditLogging.MongoDB
             DateTime? endTime = null,
             string httpMethod = null,
             string url = null,
+            Guid? userId = null,
             string userName = null,
             string applicationName = null,
             string correlationId = null,
@@ -118,6 +125,7 @@ namespace Volo.Abp.AuditLogging.MongoDB
                 .WhereIf(hasException.HasValue && !hasException.Value, auditLog => auditLog.Exceptions == null || auditLog.Exceptions == "")
                 .WhereIf(httpMethod != null, auditLog => auditLog.HttpMethod == httpMethod)
                 .WhereIf(url != null, auditLog => auditLog.Url != null && auditLog.Url.Contains(url))
+                .WhereIf(userId != null, auditLog => auditLog.UserId == userId)
                 .WhereIf(userName != null, auditLog => auditLog.UserName == userName)
                 .WhereIf(applicationName != null, auditLog => auditLog.ApplicationName == applicationName)
                 .WhereIf(correlationId != null, auditLog => auditLog.CorrelationId == correlationId)
@@ -125,7 +133,6 @@ namespace Volo.Abp.AuditLogging.MongoDB
                 .WhereIf(maxDuration != null && maxDuration > 0, auditLog => auditLog.ExecutionDuration <= maxDuration)
                 .WhereIf(minDuration != null && minDuration > 0, auditLog => auditLog.ExecutionDuration >= minDuration);
         }
-
 
         public virtual async Task<Dictionary<DateTime, double>> GetAverageExecutionDurationPerDayAsync(
             DateTime startDate,
@@ -180,7 +187,7 @@ namespace Volo.Abp.AuditLogging.MongoDB
             var query = await GetEntityChangeListQueryAsync(auditLogId, startTime, endTime, changeType, entityId, entityTypeFullName, cancellationToken);
 
             return await query
-                .OrderBy(sorting ?? "changeTime desc")
+                .OrderBy(sorting.IsNullOrWhiteSpace() ? (nameof(EntityChange.ChangeTime) + " DESC") : sorting)
                 .As<IMongoQueryable<EntityChange>>()
                 .PageBy<EntityChange, IMongoQueryable<EntityChange>>(skipCount, maxResultCount)
                 .ToListAsync(GetCancellationToken(cancellationToken));

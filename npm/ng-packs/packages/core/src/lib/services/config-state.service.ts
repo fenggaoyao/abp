@@ -1,8 +1,9 @@
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { map, tap } from 'rxjs/operators';
 import { ApplicationConfigurationDto } from '../proxy/volo/abp/asp-net-core/mvc/application-configurations/models';
 import { InternalStore } from '../utils/internal-store-utils';
+import { AbpApplicationConfigurationService } from '../proxy/volo/abp/asp-net-core/mvc/application-configurations/abp-application-configuration.service';
 
 @Injectable({
   providedIn: 'root',
@@ -14,8 +15,14 @@ export class ConfigStateService {
     return this.store.sliceUpdate;
   }
 
+  constructor(private abpConfigService: AbpApplicationConfigurationService) {}
+
   setState(state: ApplicationConfigurationDto) {
     this.store.set(state);
+  }
+
+  refreshAppState() {
+    return this.abpConfigService.get().pipe(tap(res => this.setState(res)));
   }
 
   getOne$(key: string) {
@@ -70,6 +77,21 @@ export class ConfigStateService {
 
   getFeature$(key: string) {
     return this.store.sliceState(state => state.features?.values?.[key]);
+  }
+
+  getFeatures(keys: string[]) {
+    const { features } = this.store.state;
+    if (!features) return;
+
+    return keys.reduce((acc, key) => ({ ...acc, [key]: features.values[key] }), {});
+  }
+
+  getFeatures$(keys: string[]) {
+    return this.store.sliceState(({ features }) => {
+      if (!features?.values) return;
+
+      return keys.reduce((acc, key) => ({ ...acc, [key]: features.values[key] }), {});
+    });
   }
 
   getSetting(key: string) {

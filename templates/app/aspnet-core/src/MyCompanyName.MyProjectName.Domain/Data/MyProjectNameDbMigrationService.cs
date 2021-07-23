@@ -40,18 +40,14 @@ namespace MyCompanyName.MyProjectName.Data
 
         public async Task MigrateAsync()
         {
-            try
+            //<TEMPLATE-REMOVE IF-NOT='EFCORE'>
+            var initialMigrationAdded = AddInitialMigrationIfNotExist();
+
+            if (initialMigrationAdded)
             {
-                if (DbMigrationsProjectExists() && !MigrationsFolderExists())
-                {
-                    AddInitialMigration();
-                    return;
-                }
+                return;
             }
-            catch (Exception e)
-            {
-                Logger.LogWarning("Couldn't determinate if any migrations exist : " + e.Message);
-            }
+            //</TEMPLATE-REMOVE>
 
             Logger.LogInformation("Started database migrations...");
 
@@ -112,18 +108,52 @@ namespace MyCompanyName.MyProjectName.Data
             );
         }
 
+        //<TEMPLATE-REMOVE IF-NOT='EFCORE'>
+        private bool AddInitialMigrationIfNotExist()
+        {
+            try
+            {
+                if (!DbMigrationsProjectExists())
+                {
+                    return false;
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+
+            try
+            {
+                if (!MigrationsFolderExists())
+                {
+                    AddInitialMigration();
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.LogWarning("Couldn't determinate if any migrations exist : " + e.Message);
+                return false;
+            }
+        }
+
         private bool DbMigrationsProjectExists()
         {
-            var dbMigrationsProjectFolder = GetDbMigrationsProjectFolderPath();
+            var dbMigrationsProjectFolder = GetEntityFrameworkCoreProjectFolderPath();
 
             return dbMigrationsProjectFolder != null;
         }
 
         private bool MigrationsFolderExists()
         {
-            var dbMigrationsProjectFolder = GetDbMigrationsProjectFolderPath();
+            var dbMigrationsProjectFolder = GetEntityFrameworkCoreProjectFolderPath();
 
-            return Directory.Exists(Path.Combine(dbMigrationsProjectFolder, "migrations"));
+            return Directory.Exists(Path.Combine(dbMigrationsProjectFolder, "Migrations"));
         }
 
         private void AddInitialMigration()
@@ -144,8 +174,8 @@ namespace MyCompanyName.MyProjectName.Data
                 fileName = "cmd.exe";
             }
 
-            var procStartInfo = new ProcessStartInfo( fileName,
-                $"{argumentPrefix} \"abp create-migration-and-run-migrator \"{GetDbMigrationsProjectFolderPath()}\"\""
+            var procStartInfo = new ProcessStartInfo(fileName,
+                $"{argumentPrefix} \"abp create-migration-and-run-migrator \"{GetEntityFrameworkCoreProjectFolderPath()}\"\""
             );
 
             try
@@ -158,7 +188,7 @@ namespace MyCompanyName.MyProjectName.Data
             }
         }
 
-        private string GetDbMigrationsProjectFolderPath()
+        private string GetEntityFrameworkCoreProjectFolderPath()
         {
             var slnDirectoryPath = GetSolutionDirectoryPath();
 
@@ -170,7 +200,7 @@ namespace MyCompanyName.MyProjectName.Data
             var srcDirectoryPath = Path.Combine(slnDirectoryPath, "src");
 
             return Directory.GetDirectories(srcDirectoryPath)
-                .FirstOrDefault(d => d.EndsWith(".DbMigrations"));
+                .FirstOrDefault(d => d.EndsWith(".EntityFrameworkCore"));
         }
 
         private string GetSolutionDirectoryPath()
@@ -189,5 +219,6 @@ namespace MyCompanyName.MyProjectName.Data
 
             return null;
         }
+        //</TEMPLATE-REMOVE>
     }
 }

@@ -1,23 +1,22 @@
-﻿using System;
+﻿using Microsoft.AspNetCore.Authorization;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.Extensions.Options;
-using Volo.Abp;
 using Volo.Abp.Application.Dtos;
-using Volo.Abp.Application.Services;
+using Volo.Abp.Authorization;
 using Volo.Abp.EventBus.Distributed;
-using Volo.Abp.Uow;
+using Volo.Abp.GlobalFeatures;
 using Volo.Abp.Users;
 using Volo.CmsKit.Comments;
+using Volo.CmsKit.GlobalFeatures;
 using Volo.CmsKit.Users;
 
 namespace Volo.CmsKit.Public.Comments
 {
-    public class CommentPublicAppService : ApplicationService, ICommentPublicAppService
+    [RequiresGlobalFeature(typeof(CommentsFeature))]
+    public class CommentPublicAppService : CmsKitPublicAppServiceBase, ICommentPublicAppService
     {
-        protected CmsKitOptions CmsKitOptions { get; }
         protected ICommentRepository CommentRepository { get; }
         protected ICmsUserLookupService CmsUserLookupService { get; }
         public IDistributedEventBus DistributedEventBus { get; }
@@ -27,10 +26,8 @@ namespace Volo.CmsKit.Public.Comments
             ICommentRepository commentRepository,
             ICmsUserLookupService cmsUserLookupService,
             IDistributedEventBus distributedEventBus,
-            IOptions<CmsKitOptions> cmsKitOptions,
             CommentManager commentManager)
         {
-            CmsKitOptions = cmsKitOptions.Value;
             CommentRepository = commentRepository;
             CmsUserLookupService = cmsUserLookupService;
             DistributedEventBus = distributedEventBus;
@@ -52,7 +49,7 @@ namespace Volo.CmsKit.Public.Comments
         {
             var user = await CmsUserLookupService.GetByIdAsync(CurrentUser.GetId());
 
-            if(input.RepliedCommentId.HasValue)
+            if (input.RepliedCommentId.HasValue)
             {
                 await CommentRepository.GetAsync(input.RepliedCommentId.Value);
             }
@@ -85,7 +82,7 @@ namespace Volo.CmsKit.Public.Comments
 
             if (comment.CreatorId != CurrentUser.GetId())
             {
-                throw new BusinessException(); //TODO: AbpAuthorizationException!
+                throw new AbpAuthorizationException();
             }
 
             comment.SetText(input.Text);
@@ -102,7 +99,7 @@ namespace Volo.CmsKit.Public.Comments
 
             if (comment.CreatorId != CurrentUser.GetId())
             {
-                throw new BusinessException(); //TODO: AbpAuthorizationException!
+                throw new AbpAuthorizationException();
             }
 
             await CommentRepository.DeleteWithRepliesAsync(comment);
@@ -113,8 +110,8 @@ namespace Volo.CmsKit.Public.Comments
             //TODO: I think this method can be optimized if you use dictionaries instead of straight search
 
             var parentComments = comments
-                .Where(c=> c.Comment.RepliedCommentId == null)
-                .Select(c=> ObjectMapper.Map<Comment, CommentWithDetailsDto>(c.Comment))
+                .Where(c => c.Comment.RepliedCommentId == null)
+                .Select(c => ObjectMapper.Map<Comment, CommentWithDetailsDto>(c.Comment))
                 .ToList();
 
             foreach (var parentComment in parentComments)

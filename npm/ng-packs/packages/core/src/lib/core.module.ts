@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { HTTP_INTERCEPTORS, HttpClientModule, HttpClientXsrfModule } from '@angular/common/http';
+import { HttpClientModule, HttpClientXsrfModule, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { APP_INITIALIZER, Injector, ModuleWithProviders, NgModule } from '@angular/core';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -29,10 +29,11 @@ import { LocaleProvider } from './providers/locale.provider';
 import { LocalizationService } from './services/localization.service';
 import { ProfileState } from './states/profile.state';
 import { oAuthStorage } from './strategies/auth-flow.strategy';
-import { CORE_OPTIONS, coreOptionsFactory } from './tokens/options.token';
+import { coreOptionsFactory, CORE_OPTIONS } from './tokens/options.token';
 import { noop } from './utils/common-utils';
 import './utils/date-extensions';
 import { getInitialData, localeInitializer } from './utils/initial-utils';
+import { TENANT_KEY } from './tokens/tenant-key.token';
 
 export function storageFactory(): OAuthStorage {
   return oAuthStorage;
@@ -178,6 +179,7 @@ export class CoreModule {
           useFactory: noop,
         },
         { provide: OAuthStorage, useFactory: storageFactory },
+        { provide: TENANT_KEY, useValue: options.tenantKey || '__tenant' },
       ],
     };
   }

@@ -29,6 +29,7 @@ namespace Volo.Abp.AuditLogging.EntityFrameworkCore
             DateTime? endTime = null,
             string httpMethod = null,
             string url = null,
+            Guid? userId = null,
             string userName = null,
             string applicationName = null,
             string correlationId = null,
@@ -44,6 +45,7 @@ namespace Volo.Abp.AuditLogging.EntityFrameworkCore
                 endTime,
                 httpMethod,
                 url,
+                userId,
                 userName,
                 applicationName,
                 correlationId,
@@ -54,7 +56,8 @@ namespace Volo.Abp.AuditLogging.EntityFrameworkCore
                 includeDetails
             );
 
-            var auditLogs = await query.OrderBy(sorting ?? "executionTime desc")
+            var auditLogs = await query
+                .OrderBy(sorting.IsNullOrWhiteSpace() ? (nameof(AuditLog.ExecutionTime) + " DESC") : sorting)
                 .PageBy(skipCount, maxResultCount)
                 .ToListAsync(GetCancellationToken(cancellationToken));
 
@@ -66,6 +69,7 @@ namespace Volo.Abp.AuditLogging.EntityFrameworkCore
             DateTime? endTime = null,
             string httpMethod = null,
             string url = null,
+            Guid? userId = null,
             string userName = null,
             string applicationName = null,
             string correlationId = null,
@@ -80,6 +84,7 @@ namespace Volo.Abp.AuditLogging.EntityFrameworkCore
                 endTime,
                 httpMethod,
                 url,
+                userId,
                 userName,
                 applicationName,
                 correlationId,
@@ -99,6 +104,7 @@ namespace Volo.Abp.AuditLogging.EntityFrameworkCore
             DateTime? endTime = null,
             string httpMethod = null,
             string url = null,
+            Guid? userId = null,
             string userName = null,
             string applicationName = null,
             string correlationId = null,
@@ -117,6 +123,7 @@ namespace Volo.Abp.AuditLogging.EntityFrameworkCore
                 .WhereIf(hasException.HasValue && !hasException.Value, auditLog => auditLog.Exceptions == null || auditLog.Exceptions == "")
                 .WhereIf(httpMethod != null, auditLog => auditLog.HttpMethod == httpMethod)
                 .WhereIf(url != null, auditLog => auditLog.Url != null && auditLog.Url.Contains(url))
+                .WhereIf(userId != null, auditLog => auditLog.UserId == userId)
                 .WhereIf(userName != null, auditLog => auditLog.UserName == userName)
                 .WhereIf(applicationName != null, auditLog => auditLog.ApplicationName == applicationName)
                 .WhereIf(correlationId != null, auditLog => auditLog.CorrelationId == correlationId)
@@ -185,7 +192,7 @@ namespace Volo.Abp.AuditLogging.EntityFrameworkCore
         {
             var query = await GetEntityChangeListQueryAsync(auditLogId, startTime, endTime, changeType, entityId, entityTypeFullName, includeDetails);
 
-            return await query.OrderBy(sorting ?? "changeTime desc")
+            return await query.OrderBy(sorting.IsNullOrWhiteSpace() ? (nameof(EntityChange.ChangeTime) + " DESC") : sorting)
                 .PageBy(skipCount, maxResultCount)
                 .ToListAsync(GetCancellationToken(cancellationToken));
         }

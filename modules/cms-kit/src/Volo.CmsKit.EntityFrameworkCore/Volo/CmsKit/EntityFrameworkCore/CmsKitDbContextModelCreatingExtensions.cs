@@ -1,19 +1,19 @@
-﻿using System;
-using System.Linq;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
+using System;
 using Volo.Abp;
 using Volo.Abp.EntityFrameworkCore.Modeling;
 using Volo.Abp.GlobalFeatures;
-using Volo.CmsKit.Comments;
-using Volo.CmsKit.Reactions;
-using Volo.CmsKit.Users;
 using Volo.Abp.Users.EntityFrameworkCore;
+using Volo.CmsKit.Blogs;
+using Volo.CmsKit.Comments;
 using Volo.CmsKit.GlobalFeatures;
+using Volo.CmsKit.MediaDescriptors;
+using Volo.CmsKit.Menus;
 using Volo.CmsKit.Pages;
 using Volo.CmsKit.Ratings;
+using Volo.CmsKit.Reactions;
 using Volo.CmsKit.Tags;
-using Volo.CmsKit.Blogs;
-using Volo.CmsKit.MediaDescriptors;
+using Volo.CmsKit.Users;
 
 namespace Volo.CmsKit.EntityFrameworkCore
 {
@@ -32,8 +32,7 @@ namespace Volo.CmsKit.EntityFrameworkCore
 
             optionsAction?.Invoke(options);
 
-            //TODO: What if only CMSKit Pro features are enabled? This is kinda workaround for now
-            if (GlobalFeatureManager.Instance.Modules.CmsKit().GetFeatures().Any(f => f.IsEnabled))
+            if (GlobalFeatureManager.Instance.IsEnabled<CmsUserFeature>())
             {
                 builder.Entity<CmsUser>(b =>
                 {
@@ -44,7 +43,13 @@ namespace Volo.CmsKit.EntityFrameworkCore
 
                     b.HasIndex(x => new { x.TenantId, x.UserName });
                     b.HasIndex(x => new { x.TenantId, x.Email });
+
+                    b.ApplyObjectExtensionMappings();
                 });
+            }
+            else
+            {
+                builder.Ignore<CmsUser>();
             }
 
             if (GlobalFeatureManager.Instance.IsEnabled<ReactionsFeature>())
@@ -61,6 +66,8 @@ namespace Volo.CmsKit.EntityFrameworkCore
 
                     b.HasIndex(x => new { x.TenantId, x.EntityType, x.EntityId, x.ReactionName });
                     b.HasIndex(x => new { x.TenantId, x.CreatorId, x.EntityType, x.EntityId, x.ReactionName });
+
+                    b.ApplyObjectExtensionMappings();
                 });
             }
             else
@@ -83,6 +90,8 @@ namespace Volo.CmsKit.EntityFrameworkCore
 
                     b.HasIndex(x => new { x.TenantId, x.EntityType, x.EntityId });
                     b.HasIndex(x => new { x.TenantId, x.RepliedCommentId });
+
+                    b.ApplyObjectExtensionMappings();
                 });
             }
             else
@@ -103,6 +112,8 @@ namespace Volo.CmsKit.EntityFrameworkCore
                     r.Property(x => x.EntityId).IsRequired().HasMaxLength(RatingConsts.MaxEntityIdLength);
 
                     r.HasIndex(x => new { x.TenantId, x.EntityType, x.EntityId, x.CreatorId });
+
+                    r.ApplyObjectExtensionMappings();
                 });
             }
             else
@@ -126,6 +137,8 @@ namespace Volo.CmsKit.EntityFrameworkCore
                         x.TenantId,
                         x.Name
                     });
+
+                    b.ApplyObjectExtensionMappings();
                 });
 
                 builder.Entity<EntityTag>(b =>
@@ -140,6 +153,8 @@ namespace Volo.CmsKit.EntityFrameworkCore
                     b.Property(x => x.TagId).IsRequired();
 
                     b.HasIndex(x => new { x.TenantId, x.EntityId, x.TagId });
+
+                    b.ApplyObjectExtensionMappings();
                 });
             }
             else
@@ -161,6 +176,8 @@ namespace Volo.CmsKit.EntityFrameworkCore
                     b.Property(x => x.Content).HasMaxLength(PageConsts.MaxContentLength);
 
                     b.HasIndex(x => new { x.TenantId, Url = x.Slug });
+
+                    b.ApplyObjectExtensionMappings();
                 });
             }
             else
@@ -179,6 +196,8 @@ namespace Volo.CmsKit.EntityFrameworkCore
                     b.Property(p => p.Name).IsRequired().HasMaxLength(BlogConsts.MaxNameLength);
 
                     b.Property(p => p.Slug).IsRequired().HasMaxLength(BlogConsts.MaxSlugLength);
+
+                    b.ApplyObjectExtensionMappings();
                 });
 
                 builder.Entity<BlogPost>(b =>
@@ -192,8 +211,10 @@ namespace Volo.CmsKit.EntityFrameworkCore
                     b.Property(p => p.Slug).IsRequired().HasMaxLength(BlogPostConsts.MaxSlugLength);
                     b.Property(p => p.ShortDescription).HasMaxLength(BlogPostConsts.MaxShortDescriptionLength);
                     b.Property(p => p.Content).HasMaxLength(BlogPostConsts.MaxContentLength);
-                    
+
                     b.HasIndex(x => new { x.Slug, x.BlogId });
+
+                    b.ApplyObjectExtensionMappings();
                 });
 
                 builder.Entity<BlogFeature>(b =>
@@ -203,6 +224,8 @@ namespace Volo.CmsKit.EntityFrameworkCore
                     b.ConfigureByConvention();
 
                     b.Property(p => p.FeatureName).IsRequired().HasMaxLength(BlogFeatureConsts.MaxFeatureNameLenth);
+
+                    b.ApplyObjectExtensionMappings();
                 });
             }
             else
@@ -224,12 +247,34 @@ namespace Volo.CmsKit.EntityFrameworkCore
                     b.Property(x => x.Name).IsRequired().HasMaxLength(MediaDescriptorConsts.MaxNameLength);
                     b.Property(x => x.MimeType).IsRequired().HasMaxLength(MediaDescriptorConsts.MaxMimeTypeLength);
                     b.Property(x => x.Size).HasMaxLength(MediaDescriptorConsts.MaxSizeLength);
+
+                    b.ApplyObjectExtensionMappings();
                 });
             }
             else
             {
                 builder.Ignore<MediaDescriptor>();
             }
+            
+            if (GlobalFeatureManager.Instance.IsEnabled<MenuFeature>())
+            {
+                builder.Entity<MenuItem>(b =>
+                {
+                    b.ToTable(options.TablePrefix + "MenuItems", options.Schema);
+
+                    b.ConfigureByConvention();
+
+                    b.Property(x => x.DisplayName).IsRequired().HasMaxLength(MenuItemConsts.MaxDisplayNameLength);
+
+                    b.Property(x => x.Url).IsRequired().HasMaxLength(MenuItemConsts.MaxUrlLength);
+                });
+            }
+            else
+            {
+                builder.Ignore<MenuItem>();
+            }
+            
+            builder.TryConfigureObjectExtensions<CmsKitDbContext>();
         }
     }
 }
