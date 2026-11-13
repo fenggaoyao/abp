@@ -1,35 +1,39 @@
 import {
+  AfterViewInit,
   ChangeDetectorRef,
   Directive,
-  ElementRef,
-  Input,
   OnChanges,
   OnDestroy,
-  Optional,
-  Renderer2,
   TemplateRef,
   ViewContainerRef,
+  inject,
+  input
 } from '@angular/core';
-import { Subscription } from 'rxjs';
-import { distinctUntilChanged } from 'rxjs/operators';
+import { ReplaySubject, Subscription } from 'rxjs';
+import { distinctUntilChanged, take } from 'rxjs/operators';
 import { PermissionService } from '../services/permission.service';
+import { QUEUE_MANAGER } from '../tokens/queue.token';
+import { QueueManager } from '../utils/queue';
 
 @Directive({
   selector: '[abpPermission]',
 })
-export class PermissionDirective implements OnDestroy, OnChanges {
-  @Input('abpPermission') condition: string;
+export class PermissionDirective implements OnDestroy, OnChanges, AfterViewInit {
+  private templateRef = inject<TemplateRef<any>>(TemplateRef, { optional: true });
+  private vcRef = inject(ViewContainerRef);
+  private permissionService = inject(PermissionService);
+  private cdRef = inject(ChangeDetectorRef);
+  queue = inject<QueueManager>(QUEUE_MANAGER);
 
-  subscription: Subscription;
+  readonly condition = input<string | undefined>(undefined, { alias: "abpPermission" });
 
-  constructor(
-    private elRef: ElementRef<HTMLElement>,
-    private renderer: Renderer2,
-    @Optional() private templateRef: TemplateRef<any>,
-    private vcRef: ViewContainerRef,
-    private permissionService: PermissionService,
-    private cdRef: ChangeDetectorRef,
-  ) {}
+  readonly runChangeDetection = input(true, { alias: "abpPermissionRunChangeDetection" });
+
+  subscription!: Subscription;
+
+  cdrSubject = new ReplaySubject<void>();
+
+  rendered = false;
 
   private check() {
     if (this.subscription) {
@@ -37,29 +41,25 @@ export class PermissionDirective implements OnDestroy, OnChanges {
     }
 
     this.subscription = this.permissionService
-      .getGrantedPolicy$(this.condition)
+      .getGrantedPolicy$(this.condition() || '')
       .pipe(distinctUntilChanged())
       .subscribe(isGranted => {
-        if (this.templateRef) this.initStructural(isGranted);
-        else this.initAttribute(isGranted);
-
-        this.cdRef.detectChanges();
+        this.vcRef.clear();
+        if (isGranted && this.templateRef) {
+          this.vcRef.createEmbeddedView(this.templateRef);
+        }
+        if (this.runChangeDetection()) {
+          if (!this.rendered) {
+            this.cdrSubject.next();
+          } else {
+            // Defer via queue — sync detectChanges during ApplicationRef.tick
+            // (e.g. post-login permission/config refresh) can contribute to NG0101.
+            this.queue.add(() => this.cdRef.detectChanges());
+          }
+        } else {
+          this.cdRef.markForCheck();
+        }
       });
-  }
-
-  private initStructural(isGranted: boolean) {
-    this.vcRef.clear();
-
-    if (isGranted) this.vcRef.createEmbeddedView(this.templateRef);
-  }
-
-  /**
-   * @deprecated Will be deleted in v5.0
-   */
-  private initAttribute(isGranted: boolean) {
-    if (!isGranted) {
-      this.renderer.removeChild(this.elRef.nativeElement.parentElement, this.elRef.nativeElement);
-    }
   }
 
   ngOnDestroy(): void {
@@ -68,5 +68,10 @@ export class PermissionDirective implements OnDestroy, OnChanges {
 
   ngOnChanges() {
     this.check();
+  }
+
+  ngAfterViewInit() {
+    this.cdrSubject.pipe(take(1)).subscribe(() => this.queue.add(() => this.cdRef.detectChanges()));
+    this.rendered = true;
   }
 }

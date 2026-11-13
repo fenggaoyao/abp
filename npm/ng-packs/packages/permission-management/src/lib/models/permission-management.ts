@@ -1,5 +1,5 @@
-import { EventEmitter } from '@angular/core';
-import { GetPermissionListResultDto } from '../proxy/models';
+import { GetPermissionListResultDto } from '@abp/ng.permission-management/proxy';
+import { EventEmitter, OutputEmitterRef } from '@angular/core';
 
 export namespace PermissionManagement {
   export interface State {
@@ -14,6 +14,6 @@ export namespace PermissionManagement {
   }
 
   export interface PermissionManagementComponentOutputs {
-    readonly visibleChange: EventEmitter<boolean>;
+    readonly visibleChange: EventEmitter<boolean> | OutputEmitterRef<boolean>;
   }
 }

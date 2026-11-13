@@ -1,3 +1,4 @@
+/* eslint-disable no-useless-escape */
 import { strings } from '@angular-devkit/core';
 
 export const lower = (text: string) => text.toLowerCase();
@@ -11,7 +12,7 @@ export const dir = (text: string) =>
   strings.dasherize(text.replace(/\./g, '/').replace(/\/\//g, '/'));
 
 export const quote = (value: number | string) =>
-  typeof value === 'string' ? `'${value.replace(/'/g, '\\\'')}'` : value;
+  typeof value === 'string' ? `'${value.replace(/'/g, "\\'")}'` : value;
 
 function _(text: string): string {
   return text.replace(/\./g, '_');
@@ -53,4 +54,7 @@ function isUpperCase(str = '') {
 
 function toLowerCase(str = '') {
   return str.toLowerCase();
+}
+export function camelizeHyphen(str: string) {
+  return str.replace(/-([a-z])/g, g => g[1].toUpperCase());
 }

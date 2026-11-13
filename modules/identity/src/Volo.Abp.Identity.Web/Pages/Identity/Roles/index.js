@@ -1,4 +1,4 @@
-﻿(function ($) {
+(function ($) {
     var l = abp.localization.getResource('AbpIdentity');
 
     var _identityRoleAppService = volo.abp.identity.identityRole;
@@ -38,6 +38,7 @@
                             _permissionsModal.open({
                                 providerName: 'R',
                                 providerKey: data.record.name,
+                                providerKeyDisplayName: data.record.name
                             });
                         },
                     },
@@ -61,7 +62,8 @@
                             _identityRoleAppService
                                 .delete(data.record.id)
                                 .then(function () {
-                                    _dataTable.ajax.reload();
+                                    _dataTable.ajax.reloadEx();
+                                    abp.notify.success(l('DeletedSuccessfully'));
                                 });
                         },
                     }
@@ -84,16 +86,16 @@
                         title: l('RoleName'),
                         data: 'name',
                         render: function (data, type, row) {
-                            var name = '<span>' + data + '</span>';
+                            var name = '<span>' + $.fn.dataTable.render.text().display(data) + '</span>'; //prevent against possible XSS
                             if (row.isDefault) {
                                 name +=
-                                    '<span class="badge badge-pill badge-success ml-1">' +
+                                    '<span class="badge rounded-pill bg-success ms-1">' +
                                     l('DisplayName:IsDefault') +
                                     '</span>';
                             }
                             if (row.isPublic) {
                                 name +=
-                                    '<span class="badge badge-pill badge-info ml-1">' +
+                                    '<span class="badge rounded-pill bg-info ms-1">' +
                                     l('DisplayName:IsPublic') +
                                     '</span>';
                             }
@@ -112,7 +114,7 @@
 
         _dataTable = _$table.DataTable(
             abp.libs.datatables.normalizeConfiguration({
-                order: [[1, 'asc']],
+                order: [],
                 searching: false,
                 processing: true,
                 serverSide: true,
@@ -126,14 +128,14 @@
         );
 
         _createModal.onResult(function () {
-            _dataTable.ajax.reload();
+            _dataTable.ajax.reloadEx();
         });
 
         _editModal.onResult(function () {
-            _dataTable.ajax.reload();
+            _dataTable.ajax.reloadEx();
         });
 
-        _$wrapper.find('button[name=CreateRole]').click(function (e) {
+        $('#AbpContentToolbar button[name=CreateRole]').click(function (e) {
             e.preventDefault();
             _createModal.open();
         });

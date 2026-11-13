@@ -1,44 +1,42 @@
-﻿$(function (){
+$(function (){
     var l = abp.localization.getResource("CmsKit");
     
     var commentsService = volo.cmsKit.admin.comments.commentAdmin;
 
-    var detailsModal = new abp.ModalManager(abp.appPath + "CmsKit/Comments/DetailsModal");
-    
-    $(".input-daterange")
-        .datepicker({
-            todayBtn: "linked",
-            autoclose: true,
-            language: abp.localization.currentCulture.cultureName,
-        })
-        .on("hide", function (e) {
-            e.stopPropagation();
-        });
+    var commentRequireApprovement = abp.setting.getBoolean("CmsKit.Comments.RequireApprovement");
+
+    if (commentRequireApprovement) {
+        $('#IsApprovedSelectInput').show();
+    }
+	
+	moment.localeData().preparse = (s)=>s;
+    moment.localeData().postformat = (s)=>s;
+
+    var singleDatePicker = $('#CmsKitCommentsDetailsWrapper .singledatepicker');
+    singleDatePicker.daterangepicker({
+        "singleDatePicker": true,
+        "showDropdowns": true,
+        "autoUpdateInput": false,
+        "autoApply": true,
+        "opens": "center",
+        "drops": "auto",
+        "minYear": 1901,
+        "maxYear": 2199,
+    });
+
+    singleDatePicker.attr('autocomplete', 'off');
+
+    singleDatePicker.on('apply.daterangepicker', function (ev, picker) {
+        $(this).val(picker.startDate.format('l'));
+        $(this).data('date', picker.startDate.locale('en').format('YYYY-MM-DD'));
+    });
     
     var filterForm = $('#CmsKitCommentsFilterForm');
-    
+
     var getFilter = function () {
-        var filterObj = filterForm.serializeFormToObject();
-
-        var startDate = luxon.DateTime.fromFormat(
-            filterObj.creationStartDate,
-            abp.localization.currentCulture.dateTimeFormat.shortDatePattern,
-            { locale: abp.localization.currentCulture.cultureName }
-        );
-        if (!startDate.invalid) {
-            filterObj.creationStartDate = startDate.toFormat("yyyy-MM-dd");
-        }
-
-        var endDate = luxon.DateTime.fromFormat(
-            filterObj.creationEndDate,
-            abp.localization.currentCulture.dateTimeFormat.shortDatePattern,
-            { locale: abp.localization.currentCulture.cultureName }
-        );
-        if (!endDate.invalid) {
-            filterObj.creationEndDate = endDate.toFormat("yyyy-MM-dd");
-        }
-        
-        return filterObj;
+        filterForm.handleDatepicker('.singledatepicker');
+        var formObject = filterForm.serializeFormToObject();
+        return formObject;
     };
     
     var _dataTable = $('#CommentsTable').DataTable(abp.libs.datatables.normalizeConfiguration({
@@ -73,9 +71,45 @@
                                 commentsService
                                     .delete(data.record.id)
                                     .then(function () {
-                                        abp.notify.info(l("SuccessfullyDeleted"));
-                                        _dataTable.ajax.reload();
+                                        _dataTable.ajax.reloadEx();
+                                        abp.notify.success(l('DeletedSuccessfully'));
                                     });
+                            }
+                        },
+                        {
+                            text: function (data) {
+                                return data.isApproved ? l('Disapproved') : l('Approve');
+                            },
+                            visible: commentRequireApprovement,
+                            action: function (data) {
+                                var newApprovalStatus = !data.record?.isApproved;
+
+                                commentsService
+                                    .updateApprovalStatus(data.record.id, { IsApproved: newApprovalStatus })
+                                    .then(function () {
+                                        _dataTable.ajax.reloadEx();
+                                        var message = newApprovalStatus ? l('ApprovedSuccessfully') : l('ApprovalRevokedSuccessfully');
+                                        abp.notify.success(message);
+                                    })
+                            }
+                        },
+                        {
+                            text: function (data) {
+                                if (data.isApproved == null) {
+                                    return l('Disapproved')
+                                }
+                            },
+                            visible: commentRequireApprovement,
+                            action: function (data) {
+                                var newApprovalStatus = false;
+
+                                commentsService
+                                    .updateApprovalStatus(data.record.id, { IsApproved: newApprovalStatus })
+                                    .then(function () {
+                                        _dataTable.ajax.reloadEx();
+                                        var message = newApprovalStatus ? l('ApprovedSuccessfully') : l('ApprovalRevokedSuccessfully');
+                                        abp.notify.success(message);
+                                    })
                             }
                         }
                     ]
@@ -88,7 +122,7 @@
                 data: "author.userName",
                 render: function (data) {
                     if (data !== null) {
-                        return GetFilterableDatatableContent('#Author', data);
+                        return GetFilterableDatatableContent('#Author', $.fn.dataTable.render.text().display(data)); //prevent against possible XSS
                     }
                     return "";
                 }
@@ -98,7 +132,7 @@
                 data: "text",
                 orderable: false,
                 render: function (data) {
-                    data = data || "";
+                    data = $.fn.dataTable.render.text().display(data || "");
 
                     var maxChars = 64;
 
@@ -122,6 +156,28 @@
                 data: "creationTime",
                 orderable: true,
                 dataFormat: "datetime"
+            },
+            {
+                width: "10%",
+                title: l("ApproveState"),
+                visible: commentRequireApprovement,
+                orderable: false,
+                data: "isApproved",
+                render: function (data, type, row) {
+                    var icons = ''
+
+                    if (data === null) {
+                        icons = '<i class="fa-solid fa-hourglass-half text-muted"></i>';
+                    } else if (typeof data === "boolean") {
+                        if (data) {
+                            icons = '<i class="fa-solid fa-check text-success"></i>';
+                        } else {
+                            icons = '<i class="fa-solid fa-x text-danger"></i>';
+                        }
+                    }
+
+                    return icons;
+                }
             }
         ]
     }));
@@ -136,11 +192,11 @@
         
         $(inputSelector).val(value);
         
-        _dataTable.ajax.reload();
+        _dataTable.ajax.reloadEx();
     });
-
+        
     filterForm.submit(function (e){
         e.preventDefault();
-        _dataTable.ajax.reload();
+        _dataTable.ajax.reloadEx();
     });
 });

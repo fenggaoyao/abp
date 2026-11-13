@@ -1,8 +1,12 @@
 # How to Add Custom Properties to the User Entity
 
+> **Note:** If your application is greater than version 4.3.3, please follow [this article](https://community.abp.io/posts/how-to-add-custom-properties-to-the-user-entity-rixchoha).
+
 ## Introduction
 
 In this step-by-step article, I will explain how you can customize the user entity class, which is available in every web application you create using the ABP framework, according to your needs. When you read this article, you will learn how to override the services of built-in modules, extend the entities, extend data transfer objects and customize the user interface in the applications you develop using the ABP framework. 
+
+> **Note:** This article is not about customizing the `Login` page. If you have such a need, please follow [this article](https://community.abp.io/posts/how-to-customize-the-login-page-for-mvc-razor-page-applications-9a40f3cd).
 
 You can see the screenshots below which we will reach at the end of the article.
 
@@ -18,7 +22,7 @@ Abp Framework offers startup templates to get into the work faster. We can creat
 
 `abp new CustomizeUserDemo`
 
-> In this article, I will go through the MVC application, but it will work also in the [Angular](https://docs.abp.io/en/abp/latest/Getting-Started?UI=NG&DB=EF&Tiered=No) application.
+> In this article, I will go through the MVC application, but it will work also in the [Angular](https://docs.abp.io/en/abp/latest/Getting-Started?UI=NG&DB=EF&Tiered=No), [Blazor Server](https://docs.abp.io/en/abp/latest/Getting-Started?UI=BlazorServer&DB=EF&Tiered=No), and [Blazor WebAssembly](https://docs.abp.io/en/abp/latest/Getting-Started?UI=Blazor&DB=EF&Tiered=No) application.
 
 After the download is finished, we can run **CustomizeUserDemo.DbMigrator** project to create the database migrations and seed the initial data (admin user, role, etc). Then we can run `CustomizeUserDemo.Web` to see that our application is working.
 
@@ -78,7 +82,7 @@ public static class CustomizeUserDemoEfCoreEntityExtensionMappings
                     nameof(AppUser.Title),
                     (entityBuilder, propertyBuilder) =>
                     {
-                        propertyBuilder.HasDefaultValue();
+                        propertyBuilder.HasDefaultValue("");
                         propertyBuilder.HasMaxLength(UserConsts.MaxTitleLength);
                     }
                 ).MapEfCoreProperty<IdentityUser, int>(
@@ -101,7 +105,7 @@ Now we need to add migration to see what has changed in our database. This for, 
 
 ![nuget-package-manager](./nuget-package-manager.png)
 
-Select the **CustomizeUserDemo.EntityFramework.DbMigrations** as the **default project** and execute the following command:
+Select the **CustomizeUserDemo.EntityFramework** as the **default project** and execute the following command:
 
 ```bash
 Add-Migration "Updated-User-Entity"
@@ -109,7 +113,7 @@ Add-Migration "Updated-User-Entity"
 
 ![added-new-migration](./added-new-migration.png)
 
-This will create a new migration class inside the `Migrations` folder of the **CustomizeUserDemo.EntityFrameworkCore.DbMigrations** project.
+This will create a new migration class inside the `Migrations` folder of the **CustomizeUserDemo.EntityFrameworkCore** project.
 
 > If you are using another IDE than the Visual Studio, you can use `dotnet-ef` tool as [documented here](https://docs.microsoft.com/en-us/ef/core/managing-schemas/migrations/?tabs=dotnet-core-cli#create-a-migration).
 

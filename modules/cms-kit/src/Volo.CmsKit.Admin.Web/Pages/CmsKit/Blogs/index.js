@@ -1,4 +1,4 @@
-﻿
+
 $(function () {
     var l = abp.localization.getResource("CmsKit");
 
@@ -6,6 +6,35 @@ $(function () {
     var updateModal = new abp.ModalManager({ viewUrl: abp.appPath + "CmsKit/Blogs/UpdateModal", modalClass: 'updateBlog' });
     var featuresModal = new abp.ModalManager(abp.appPath + "CmsKit/Blogs/FeaturesModal");
 
+
+    var deleteBlogModal = new abp.ModalManager(abp.appPath + 'CmsKit/Blogs/DeleteBlogModal');
+
+    deleteBlogModal.onResult(function(){
+        abp.notify.success(l('DeletedSuccessfully'));
+    });
+
+    deleteBlogModal.onOpen(function () {
+        var $form = deleteBlogModal.getForm();
+        $form.find('#assign').click(function () {
+            $form.find('#Blog_AssignToBlogId').show();
+            $form.find('[type=submit]').attr("disabled","disabled")
+        })
+        $form.find('#deleteAll').click(function () {
+            $form.find('#Blog_AssignToBlogId').hide();
+            $form.find('#Blog_AssignToBlogId').val("");
+            $form.find('[type=submit]').removeAttr("disabled");
+        })
+
+        $("#Blog_AssignToBlogId").on("change", function () {
+            var val = $(this).val();
+            if(val === ''){
+                $form.find('[type=submit]').attr("disabled","disabled")
+            }else{
+                $form.find('[type=submit]').removeAttr("disabled");
+            }
+        })
+    })
+    
     var blogsService = volo.cmsKit.admin.blogs.blogAdmin;
 
     var dataTable = $("#BlogsTable").DataTable(abp.libs.datatables.normalizeConfiguration({
@@ -13,7 +42,6 @@ $(function () {
         serverSide: true,
         paging: true,
         searching: false,
-        autoWidth: false,
         scrollCollapse: true,
         scrollX: true,
         ordering: true,
@@ -42,16 +70,10 @@ $(function () {
                         {
                             text: l('Delete'),
                             visible: abp.auth.isGranted('CmsKit.Blogs.Delete'),
-                            confirmMessage: function (data) {
-                                return l("BlogDeletionConfirmationMessage", data.record.name)
-                            },
                             action: function (data) {
-                                blogsService
-                                    .delete(data.record.id)
-                                    .then(function () {
-                                        abp.notify.info(l("SuccessfullyDeleted"));
-                                        dataTable.ajax.reload();
-                                    });
+                                deleteBlogModal.open({
+                                    id: data.record.id
+                                });
                             }
                         }
                     ]
@@ -75,11 +97,16 @@ $(function () {
         createModal.open();
     });
 
+    
     createModal.onResult(function () {
-        dataTable.ajax.reload();
+        dataTable.ajax.reloadEx();
     });
 
     updateModal.onResult(function () {
-        dataTable.ajax.reload();
+        dataTable.ajax.reloadEx();
+    });
+
+    deleteBlogModal.onResult(function () {
+        dataTable.ajax.reloadEx();
     });
 });

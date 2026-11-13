@@ -4,7 +4,6 @@ import fse from 'fs-extra';
 
 (async () => {
   program.option('-i, --noInstall', 'skip updating package.json and installation', false);
-  program.option('-c, --skipNgcc', 'skip ngcc', false);
 
   program.parse(process.argv);
 
@@ -13,17 +12,21 @@ import fse from 'fs-extra';
       await execa('yarn', ['install'], { stdout: 'inherit', cwd: '../' });
     }
 
+    await fse.remove('../dist');
+
     await execa(
       'yarn',
       [
-        'symlink',
-        'copy',
-        '--angular',
+        'nx',
+        'run-many',
+        '--target',
+        'build',
         '--prod',
-        '--no-watch',
-        '--sync',
-        '--packages',
-        '@abp/ng.core,@abp/ng.theme.shared,@abp/ng.components',
+        '--projects',
+        'core,theme-shared,components',
+        '--parallel',
+        '1',
+        '--skip-nx-cache',
       ],
       { stdout: 'inherit', cwd: '../' },
     );
@@ -31,13 +34,16 @@ import fse from 'fs-extra';
     await execa(
       'yarn',
       [
-        'symlink',
-        'copy',
-        '--angular',
+        'nx',
+        'run-many',
+        '--target',
+        'build',
         '--prod',
-        '--no-watch',
-        '--packages',
-        '@abp/ng.feature-management,@abp/ng.permission-management',
+        '--projects',
+        'feature-management,permission-management,account-core',
+        '--parallel',
+        '1',
+        '--skip-nx-cache',
       ],
       { stdout: 'inherit', cwd: '../' },
     );
@@ -45,19 +51,20 @@ import fse from 'fs-extra';
     await execa(
       'yarn',
       [
-        'symlink',
-        'copy',
-        '--angular',
+        'nx',
+        'run-many',
+        '--target',
+        'build',
         '--prod',
-        '--no-watch',
-        '--all-packages',
-        '--excluded-packages',
-        '@abp/ng.schematics,@abp/ng.core,@abp/ng.theme.shared,@abp/ng.components,@abp/ng.feature-management,@abp/ng.permission-management',
+        '--all',
+        '--exclude',
+        'dev-app,schematics,core,theme-shared,components,feature-management,permission-management,account-core',
+        '--parallel',
+        '1',
+        '--skip-nx-cache',
       ],
       { stdout: 'inherit', cwd: '../' },
     );
-
-    if (!program.skipNgcc) await execa('yarn', ['compile:ivy'], { stdout: 'inherit', cwd: '../' });
   } catch (error) {
     console.error(error.stderr);
     process.exit(1);

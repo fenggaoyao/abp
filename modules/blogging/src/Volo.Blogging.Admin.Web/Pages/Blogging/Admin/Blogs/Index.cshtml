@@ -4,6 +4,7 @@
 @using Volo.Blogging.Admin.Pages.Blogging.Admin.Blogs
 @using Volo.Blogging
 @using Microsoft.AspNetCore.Mvc.Localization
+@using Volo.Abp.AspNetCore.Mvc.UI.Layout
 @using Volo.Blogging.Localization
 @inherits Volo.Blogging.Admin.Pages.Blogging.BloggingAdminPage
 @model IndexModel
@@ -12,12 +13,18 @@
 @{
     ViewBag.PageTitle = "Blogs";
 }
+@inject IPageLayout PageLayout
+@{
+    PageLayout.Content.Title = L["Blogs"].Value;
+    PageLayout.Content.MenuItemName = BloggingAdminMenuNames.Blogs;
+}
 
 @section scripts {
     <abp-script-bundle name="@typeof(IndexModel).FullName">
-        <abp-script src="/Pages/Blogging/Admin/Blogs/index.js" />
-        <abp-script src="/Pages/Blogging/Admin/Blogs/create.js" />
-        <abp-script src="/Pages/Blogging/Admin/Blogs/edit.js" />
+        <abp-script src="/client-proxies/bloggingAdmin-proxy.js"/>
+        <abp-script src="/Pages/Blogging/Admin/Blogs/index.js"/>
+        <abp-script src="/Pages/Blogging/Admin/Blogs/create.js"/>
+        <abp-script src="/Pages/Blogging/Admin/Blogs/edit.js"/>
     </abp-script-bundle>
 }
 
@@ -27,7 +34,7 @@
             <abp-column size-md="_6">
                 <h2>@L["Blogs"]</h2>
             </abp-column>
-            <abp-column size-md="_6" class="text-right">
+            <abp-column size-md="_6" class="text-end">
                 @if (await Authorization.IsGrantedAsync(BloggingPermissions.Blogs.Create))
                 {
                     <abp-button icon="plus" text="@L["CreateANewBlog"].Value" button-type="Primary" id="CreateNewBlogButtonId"></abp-button>
@@ -36,7 +43,7 @@
         </abp-row>
     </abp-card-header>
     <abp-card-body>
-        <abp-table striped-rows="true" id="BlogsTable" class="nowrap">
+        <abp-table  id="BlogsTable" class="nowrap">
             <thead>
                 <tr>
                     <th>@L["Actions"]</th>

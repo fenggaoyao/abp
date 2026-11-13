@@ -1,51 +1,67 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Volo.Abp.Domain.Services;
-using Volo.Abp.EventBus.Distributed;
-using Volo.Abp.EventBus.Local;
-using Volo.Abp.Uow;
 
-namespace Volo.CmsKit.Blogs
+namespace Volo.CmsKit.Blogs;
+
+public class BlogFeatureManager : DomainService
 {
-    public class BlogFeatureManager : DomainService
+    protected IBlogFeatureRepository BlogFeatureRepository { get; }
+
+    protected IDefaultBlogFeatureProvider DefaultBlogFeatureProvider { get; }
+
+    public BlogFeatureManager(
+        IBlogFeatureRepository blogFeatureRepository,
+        IDefaultBlogFeatureProvider defaultBlogFeatureProvider)
     {
-        protected IBlogFeatureRepository BlogFeatureRepository { get; }
+        BlogFeatureRepository = blogFeatureRepository;
+        DefaultBlogFeatureProvider = defaultBlogFeatureProvider;
+    }
 
-        protected IDefaultBlogFeatureProvider DefaultBlogFeatureProvider { get; }
-
-        public BlogFeatureManager(
-            IBlogFeatureRepository blogFeatureRepository,
-            IDefaultBlogFeatureProvider defaultBlogFeatureProvider)
+    public async Task SetAsync(Guid blogId, string featureName, bool isEnabled)
+    {
+        var blogFeature = await BlogFeatureRepository.FindAsync(blogId, featureName);
+        if (blogFeature == null)
         {
-            BlogFeatureRepository = blogFeatureRepository;
-            DefaultBlogFeatureProvider = defaultBlogFeatureProvider;
+            var newBlogFeature = new BlogFeature(blogId, featureName, isEnabled);
+            await BlogFeatureRepository.InsertAsync(newBlogFeature);
         }
-
-        public async Task<List<BlogFeature>> GetListAsync(Guid blogId)
+        else
         {
-            var blogFeatures = await BlogFeatureRepository.GetListAsync(blogId);
-
-            var defaultFeatures = await DefaultBlogFeatureProvider.GetDefaultFeaturesAsync(blogId);
-
-            defaultFeatures.ForEach(x => blogFeatures.AddIfNotContains(x));
-
-            return blogFeatures;
+            blogFeature.IsEnabled = isEnabled;
+            await BlogFeatureRepository.UpdateAsync(blogFeature);
         }
+    }
 
-        public async Task SetAsync(Guid blogId, string featureName, bool isEnabled)
+    public async Task SetDefaultsAsync(Guid blogId)
+    {
+        var defaultFeatures = await DefaultBlogFeatureProvider.GetDefaultFeaturesAsync(blogId);
+
+        foreach (var feature in defaultFeatures)
         {
-            var blogFeature = await BlogFeatureRepository.FindAsync(blogId, featureName);
-            if (blogFeature == null)
-            {
-                var newBlogFeature = new BlogFeature(blogId, featureName, isEnabled);
-                await BlogFeatureRepository.InsertAsync(newBlogFeature);
-            }
-            else
-            {
-                blogFeature.IsEnabled = isEnabled;
-                await BlogFeatureRepository.UpdateAsync(blogFeature);
-            }
+            await SetAsync(blogId, feature.FeatureName, isEnabled: true);
+        }
+    }
+
+    public async Task SetIfNotSetAsync(Guid blogId, string featureName, bool isEnabled)
+    {
+        var blogFeature = await BlogFeatureRepository.FindAsync(blogId, featureName);
+        if (blogFeature == null)
+        {
+            var newBlogFeature = new BlogFeature(blogId, featureName, isEnabled);
+            await BlogFeatureRepository.InsertAsync(newBlogFeature);
+        }
+    }
+
+    public async Task SetDefaultsIfNotSetAsync(Guid blogId)
+    {
+        var defaultFeatures = await DefaultBlogFeatureProvider.GetDefaultFeaturesAsync(blogId);
+
+        foreach (var feature in defaultFeatures)
+        {
+            await SetIfNotSetAsync(blogId, feature.FeatureName, isEnabled: true);
         }
     }
 }

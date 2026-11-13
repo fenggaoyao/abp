@@ -44,6 +44,11 @@ export default `
     top: 0;
     left: 100%;
 }
+/* work around for rtl. Track https://github.com/ng-bootstrap/ng-bootstrap/issues/4100 issue */
+[dir=rtl] .navbar .dropdown-submenu .dropdown-menu {
+    top: 0;
+    right: 100%;
+}
 .card-header .btn {
     padding: 2px 6px;
 }
@@ -142,4 +147,36 @@ background-color: rgba(0, 0, 0, 0.6);
     background-color: transparent;
     padding: 0.27rem;
 }
+
+.abp-md-form {
+    max-width: 540px;
+}
+
+abp-chat-icon,
+abp-back-to-impersonator-nav-item {
+    margin-inline: 0.4rem;
+}
+
+abp-chat-icon {
+    .fa-comments:before {
+        color: var(--bs-navbar-color);
+    }
+}
+
+abp-back-to-impersonator-nav-item {
+    .fa-undo {
+        color: var(--bs-navbar-color);
+    }
+}
+
+.ngx-datatable.material:has(.datatable-body-row) .datatable-footer {
+  border-top: none;
+}
+
+.ngx-datatable.material:not(:has(.datatable-body-row)) .datatable-footer {
+  border-top: 1px solid #dee2e6;
+}
+
 `;
+
+

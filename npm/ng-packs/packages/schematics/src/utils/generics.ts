@@ -58,30 +58,32 @@ export class GenericsCollector {
 }
 
 export function generateRefWithPlaceholders(sourceType: string) {
+  // eslint-disable-next-line prefer-const
   let { identifier, generics } = extractGenerics(sourceType);
 
-  identifier = identifier;
   generics = generics.map((_, i) => `T${i}`);
 
   return generics.length ? `${identifier}<${generics}>` : identifier;
 }
 
 export function extractSimpleGenerics(sourceType: string) {
-  const { identifier, generics } = extractGenerics(sourceType);
+  const { identifier, generics, array } = extractGenerics(sourceType);
 
   return {
     identifier: getLastSegment(identifier),
     generics: generics.map(getLastSegment),
+    array,
   };
 }
 
 export function extractGenerics(sourceType: string) {
+  const isArray = /\[\]$/.test(sourceType);
   const regex = /(?<identifier>[^<]+)(<(?<generics>.+)>)?/g;
   const { identifier = '', generics = '' } = regex.exec(sourceType)?.groups ?? {};
-
   return {
     identifier,
     generics: generics.split(/,\s*/).filter(Boolean),
+    array: isArray ? '[]' : '',
   };
 }
 

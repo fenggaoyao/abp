@@ -1,18 +1,27 @@
 ﻿using System;
 using System.Threading.Tasks;
-using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
-using Volo.Abp.Content;
 
-namespace Volo.CmsKit.Admin.Blogs
+namespace Volo.CmsKit.Admin.Blogs;
+
+public interface IBlogPostAdminAppService
+    : ICrudAppService<
+        BlogPostDto,
+        BlogPostListDto,
+        Guid,
+        BlogPostGetListInput,
+        CreateBlogPostDto,
+        UpdateBlogPostDto>
 {
-    public interface IBlogPostAdminAppService
-        : ICrudAppService<
-            BlogPostDto,
-            Guid,
-            PagedAndSortedResultRequestDto,
-            CreateBlogPostDto,
-            UpdateBlogPostDto>
-    {
-    }
+    Task PublishAsync(Guid id);
+
+    Task DraftAsync(Guid id);
+
+    Task<BlogPostDto> CreateAndPublishAsync(CreateBlogPostDto input);
+
+    Task SendToReviewAsync(Guid id);
+
+    Task<BlogPostDto> CreateAndSendToReviewAsync(CreateBlogPostDto input);
+
+    Task<bool> HasBlogPostWaitingForReviewAsync();
 }

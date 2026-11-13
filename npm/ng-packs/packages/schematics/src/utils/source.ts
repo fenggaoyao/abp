@@ -1,3 +1,4 @@
+/* eslint-disable no-empty */
 import { SchematicsException, Tree } from '@angular-devkit/schematics';
 import got from 'got';
 import {
@@ -14,12 +15,15 @@ import { interpolate } from './common';
 import { readEnvironment, resolveProject } from './workspace';
 
 export function createApiDefinitionGetter(params: GenerateProxySchema) {
-  const apiName = params['api-name'] || 'default';
+  const apiName = params.apiName || 'default';
+  let sourceUrl = params.url;
 
   return async (host: Tree) => {
     const source = await resolveProject(host, params.source!);
-    const sourceUrl = getSourceUrl(host, source, apiName);
-    return await getApiDefinition(sourceUrl);
+    if (!sourceUrl) {
+      sourceUrl = getSourceUrl(host, source, apiName);
+    }
+    return await getApiDefinition(sourceUrl!);
   };
 }
 
@@ -28,7 +32,7 @@ async function getApiDefinition(sourceUrl: string) {
   let body: ApiDefinition;
 
   try {
-    ({ body } = await got(url, {
+    ({ body } = await got<ApiDefinition>(url, {
       responseType: 'json',
       searchParams: { includeTypes: true },
       https: { rejectUnauthorized: false },
@@ -45,7 +49,7 @@ async function getApiDefinition(sourceUrl: string) {
 }
 
 export function createRootNamespaceGetter(params: GenerateProxySchema) {
-  const apiName = params['api-name'] || 'default';
+  const apiName = params.apiName || 'default';
 
   return async (tree: Tree) => {
     const project = await resolveProject(tree, params.source!);
@@ -102,6 +106,13 @@ export function createProxyConfigReader(targetPath: string) {
 
     throw new SchematicsException(interpolate(Exception.NoProxyConfig, targetPath));
   };
+}
+
+export function resolveProxyResourceApi(
+  params: GenerateProxySchema,
+  previousConfig?: ProxyConfig,
+) {
+  return params.resourceApi ?? previousConfig?.resourceApi ?? false;
 }
 
 export function createProxyClearer(targetPath: string) {

@@ -2,7 +2,8 @@
 using Volo.Abp.AspNetCore.Mvc.Localization;
 using Volo.Abp.AspNetCore.Mvc.UI.Bootstrap;
 using Volo.Abp.AspNetCore.Mvc.UI.Bundling;
-using Volo.Abp.AutoMapper;
+using Volo.Abp.Mapperly;
+using Volo.Abp.Http.ProxyScripting.Generators.JQuery;
 using Volo.Abp.Modularity;
 using Volo.Abp.UI.Navigation;
 using Volo.Abp.VirtualFileSystem;
@@ -11,10 +12,10 @@ using Volo.Blogging.Localization;
 namespace Volo.Blogging.Admin
 {
     [DependsOn(
-        typeof(BloggingAdminHttpApiModule),
+        typeof(BloggingAdminApplicationContractsModule),
         typeof(AbpAspNetCoreMvcUiBootstrapModule),
         typeof(AbpAspNetCoreMvcUiBundlingModule),
-        typeof(AbpAutoMapperModule)
+        typeof(AbpMapperlyModule)
     )]
     public class BloggingAdminWebModule : AbpModule
     {
@@ -22,7 +23,11 @@ namespace Volo.Blogging.Admin
         {
             context.Services.PreConfigure<AbpMvcDataAnnotationsLocalizationOptions>(options =>
             {
-                options.AddAssemblyResource(typeof(BloggingResource), typeof(BloggingAdminWebModule).Assembly);
+                options.AddAssemblyResource(
+                    typeof(BloggingResource), 
+                    typeof(BloggingAdminWebModule).Assembly, 
+                    typeof(BloggingAdminApplicationContractsModule).Assembly
+                );
             });
 
             PreConfigure<IMvcBuilder>(mvcBuilder =>
@@ -33,6 +38,8 @@ namespace Volo.Blogging.Admin
 
         public override void ConfigureServices(ServiceConfigurationContext context)
         {
+            context.Services.AddMapperlyObjectMapper<BloggingAdminWebModule>();
+            
             Configure<AbpNavigationOptions>(options =>
             {
                 options.MenuContributors.Add(new BloggingAdminMenuContributor());
@@ -43,10 +50,9 @@ namespace Volo.Blogging.Admin
                 options.FileSets.AddEmbedded<BloggingAdminWebModule>();
             });
 
-            context.Services.AddAutoMapperObjectMapper<BloggingAdminWebModule>();
-            Configure<AbpAutoMapperOptions>(options =>
+            Configure<DynamicJavaScriptProxyOptions>(options =>
             {
-                options.AddProfile<AbpBloggingAdminWebAutoMapperProfile>(validate: true);
+                options.DisableModule(BloggingAdminRemoteServiceConsts.ModuleName);
             });
         }
     }

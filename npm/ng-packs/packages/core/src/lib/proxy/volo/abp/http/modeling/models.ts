@@ -8,6 +8,8 @@ export interface ActionApiDescriptionModel {
   parametersOnMethod: MethodParameterApiDescriptionModel[];
   parameters: ParameterApiDescriptionModel[];
   returnValue: ReturnValueApiDescriptionModel;
+  allowAnonymous?: boolean;
+  implementFrom?: string;
 }
 
 export interface ApplicationApiDescriptionModel {
@@ -21,6 +23,10 @@ export interface ApplicationApiDescriptionModelRequestDto {
 
 export interface ControllerApiDescriptionModel {
   controllerName?: string;
+  controllerGroupName?: string;
+  isRemoteService: boolean;
+  isIntegrationService: boolean;
+  apiVersion?: string;
   type?: string;
   interfaces: ControllerInterfaceApiDescriptionModel[];
   actions: Record<string, ActionApiDescriptionModel>;
@@ -28,6 +34,14 @@ export interface ControllerApiDescriptionModel {
 
 export interface ControllerInterfaceApiDescriptionModel {
   type?: string;
+  name?: string;
+  methods: InterfaceMethodApiDescriptionModel[];
+}
+
+export interface InterfaceMethodApiDescriptionModel {
+  name?: string;
+  parametersOnMethod: MethodParameterApiDescriptionModel[];
+  returnValue: ReturnValueApiDescriptionModel;
 }
 
 export interface MethodParameterApiDescriptionModel {
@@ -48,6 +62,7 @@ export interface ModuleApiDescriptionModel {
 export interface ParameterApiDescriptionModel {
   nameOnMethod?: string;
   name?: string;
+  jsonName?: string;
   type?: string;
   typeSimple?: string;
   isOptional: boolean;
@@ -59,9 +74,17 @@ export interface ParameterApiDescriptionModel {
 
 export interface PropertyApiDescriptionModel {
   name?: string;
+  jsonName?: string;
   type?: string;
   typeSimple?: string;
   isRequired: boolean;
+  minLength?: number;
+  maxLength?: number;
+  minimum?: string;
+  maximum?: string;
+  minimumIsExclusive?: boolean;
+  maximumIsExclusive?: boolean;
+  regex?: string;
 }
 
 export interface ReturnValueApiDescriptionModel {

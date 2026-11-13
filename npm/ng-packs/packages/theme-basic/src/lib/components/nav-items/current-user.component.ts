@@ -1,76 +1,57 @@
-import { AuthService, ConfigStateService, CurrentUserDto, EnvironmentService } from '@abp/ng.core';
-import { Component } from '@angular/core';
-import { Router } from '@angular/router';
-import { Observable } from 'rxjs';
+import {
+  AuthService,
+  ConfigStateService,
+  CurrentUserDto,
+  LocalizationPipe,
+  NAVIGATE_TO_MANAGE_PROFILE,
+  PermissionDirective,
+  SessionStateService,
+  ToInjectorPipe,
+} from '@abp/ng.core';
+import { AbpVisibleDirective, UserMenu, UserMenuService } from '@abp/ng.theme.shared';
+import { ChangeDetectionStrategy, Component, inject, TrackByFunction } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { DOCUMENT, NgComponentOutlet } from '@angular/common';
+import { NgbDropdownModule } from '@ng-bootstrap/ng-bootstrap';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'abp-current-user',
-  // tslint:disable-next-line: component-max-inline-declarations
-  template: `
-    <ng-template #loginBtn>
-      <a role="button" class="nav-link pointer" (click)="initLogin()">{{
-        'AbpAccount::Login' | abpLocalization
-      }}</a>
-    </ng-template>
-    <div
-      *ngIf="(currentUser$ | async)?.isAuthenticated; else loginBtn"
-      ngbDropdown
-      class="dropdown"
-      #currentUserDropdown="ngbDropdown"
-      display="static"
-    >
-      <a
-        ngbDropdownToggle
-        class="nav-link"
-        href="javascript:void(0)"
-        role="button"
-        id="dropdownMenuLink"
-        data-toggle="dropdown"
-        aria-haspopup="true"
-        aria-expanded="false"
-      >
-        {{ (currentUser$ | async)?.userName }}
-      </a>
-      <div
-        class="dropdown-menu dropdown-menu-right border-0 shadow-sm"
-        aria-labelledby="dropdownMenuLink"
-        [class.d-block]="smallScreen && currentUserDropdown.isOpen()"
-      >
-        <a class="dropdown-item" [href]="manageProfileUrl"
-          ><i class="fa fa-cog mr-1"></i>{{ 'AbpAccount::ManageYourProfile' | abpLocalization }}</a
-        >
-        <a class="dropdown-item" href="javascript:void(0)" (click)="logout()"
-          ><i class="fa fa-power-off mr-1"></i>{{ 'AbpUi::Logout' | abpLocalization }}</a
-        >
-      </div>
-    </div>
-  `,
+  templateUrl: './current-user.component.html',
+  imports: [
+    NgComponentOutlet,
+    NgbDropdownModule,
+    AbpVisibleDirective,
+    PermissionDirective,
+    ToInjectorPipe,
+    LocalizationPipe,
+  ],
 })
 export class CurrentUserComponent {
-  currentUser$: Observable<CurrentUserDto> = this.configState.getOne$('currentUser');
+  readonly navigateToManageProfile = inject(NAVIGATE_TO_MANAGE_PROFILE);
+  readonly userMenu = inject(UserMenuService);
+  private authService = inject(AuthService);
+  private configState = inject(ConfigStateService);
+  private sessionState = inject(SessionStateService);
+  private document = inject(DOCUMENT);
+
+  readonly currentUser = toSignal(this.configState.getOne$('currentUser'), {
+    initialValue: {} as CurrentUserDto,
+  });
+  readonly selectedTenant = toSignal(this.sessionState.getTenant$());
+  readonly userMenuItems = toSignal(this.userMenu.items$, { initialValue: [] as UserMenu[] });
+
+  trackByFn: TrackByFunction<UserMenu> = (_, element) => element.id;
 
   get smallScreen(): boolean {
-    return window.innerWidth < 992;
+    return this.document.defaultView?.innerWidth < 992;
   }
 
-  get manageProfileUrl() {
-    return `${this.environment.getEnvironment().oAuthConfig.issuer}/Account/Manage?returnUrl=${
-      window.location.href
-    }`;
+  navigateToLogin() {
+    this.authService.navigateToLogin();
   }
 
-  constructor(
-    private authService: AuthService,
-    private router: Router,
-    private configState: ConfigStateService,
-    private environment: EnvironmentService,
-  ) {}
-
-  initLogin() {
-    this.authService.initLogin();
-  }
-
- logout() {
+  logout() {
     this.authService.logout().subscribe();
   }
 }

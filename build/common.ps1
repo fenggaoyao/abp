@@ -7,12 +7,14 @@ $rootFolder = (Get-Item -Path "./" -Verbose).FullName
 # List of solutions used only in development mode
 $solutionPaths = @(
 		"../framework",
+		"../modules/basic-theme",
 		"../modules/users",
 		"../modules/permission-management",
 		"../modules/setting-management",
 		"../modules/feature-management",
 		"../modules/identity",
 		"../modules/identityserver",
+		"../modules/openiddict",
 		"../modules/tenant-management",
 		"../modules/audit-logging",
 		"../modules/background-jobs",
@@ -32,9 +34,12 @@ if ($full -eq "-f")
 		"../templates/module/aspnet-core",
 		"../templates/app/aspnet-core",
 		"../templates/console",
-		"../templates/wpf",
-		"../abp_io/AbpIoLocalization"
-	) 
+		"../templates/app-nolayers/aspnet-core",
+		"../source-code"
+	)
+	if ($env:OS -eq "Windows_NT") {
+		$solutionPaths += "../templates/wpf"
+	}
 }else{ 
 	Write-host ""
 	Write-host ":::::::::::::: !!! You are in development mode !!! ::::::::::::::" -ForegroundColor red -BackgroundColor  yellow

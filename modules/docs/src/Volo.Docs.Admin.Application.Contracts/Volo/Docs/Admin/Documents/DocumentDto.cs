@@ -8,6 +8,8 @@ namespace Volo.Docs.Admin.Documents
     public class DocumentDto : EntityDto<Guid>
     {
         public virtual Guid ProjectId { get; set; }
+        
+        public virtual string ProjectName { get; set; }
 
         public virtual string Name { get; set; }
 
@@ -16,19 +18,9 @@ namespace Volo.Docs.Admin.Documents
         public virtual string LanguageCode { get; set; }
 
         public virtual string FileName { get; set; }
-
-        public virtual string Content { get; set; }
-
+        
         public virtual string Format { get; set; }
-
-        public virtual string EditLink { get; set; }
-
-        public virtual string RootUrl { get; set; }
-
-        public virtual string RawRootUrl { get; set; }
-
-        public virtual string LocalDirectory { get; set; }
-
+        
         public virtual DateTime CreationTime { get; set; }
 
         public virtual DateTime LastUpdatedTime { get; set; }

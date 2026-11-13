@@ -11,16 +11,20 @@ export const environment = {
     logoUrl: '',
   },
   oAuthConfig: {
-    issuer: 'https://localhost:44305',
-    redirectUri: baseUrl,
+    issuer: 'https://localhost:44305/',
     clientId: 'MyProjectName_App',
-    responseType: 'code',
     scope: 'offline_access MyProjectName',
+    responseType: 'code',
+    redirectUri: baseUrl,
+    ssrAuthorizationUrl: '/authorize'
   },
   apis: {
     default: {
       url: 'https://localhost:44305',
       rootNamespace: 'MyCompanyName.MyProjectName',
+    },
+    AbpAccount: {
+      rootNamespace: 'Volo.Abp',
     },
     AbpFeatureManagement: {
       rootNamespace: 'Volo.Abp',
@@ -34,7 +38,7 @@ export const environment = {
     AbpIdentity: {
       rootNamespace: 'Volo.Abp',
     },
-    AbpSettingManagement: {
+    SettingManagement: {
       rootNamespace: 'Volo.Abp.SettingManagement',
     },
   },

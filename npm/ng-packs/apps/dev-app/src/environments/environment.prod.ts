@@ -1,4 +1,4 @@
-import { Config } from '@abp/ng.core';
+import { Environment } from '@abp/ng.core';
 
 const baseUrl = 'http://localhost:4200';
 
@@ -11,15 +11,16 @@ export const environment = {
     logoUrl: '',
   },
   oAuthConfig: {
-    issuer: 'https://localhost:44305',
+    issuer: 'https://localhost:44305/',
     redirectUri: baseUrl,
     clientId: 'MyProjectName_App',
     responseType: 'code',
     scope: 'offline_access MyProjectName',
+    ssrAuthenticationUrl: '/authorize'
   },
   apis: {
     default: {
       url: 'https://localhost:44305',
     },
   },
-} as Config.Environment;
+} as Environment;

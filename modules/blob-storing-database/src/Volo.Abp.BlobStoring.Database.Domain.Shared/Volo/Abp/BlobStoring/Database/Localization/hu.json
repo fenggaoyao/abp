@@ -1,6 +1,6 @@
 {
-    "culture": "hu",
-    "texts": {
-      "ManageYourProfile": "Kezelje a profilját"
-    }
+  "culture": "hu",
+  "texts": {
+    "MyAccount": "A fiókom"
   }
+}

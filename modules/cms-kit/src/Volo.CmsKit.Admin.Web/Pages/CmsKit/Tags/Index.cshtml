@@ -16,6 +16,8 @@
     PageLayout.Content.MenuItemName = CmsKitAdminMenus.Tags.TagsMenu;
 }
 @section scripts {
+    <abp-script src="/client-proxies/cms-kit-common-proxy.js"/>
+    <abp-script src="/client-proxies/cms-kit-admin-proxy.js"/>
     <abp-script src="/Pages/CmsKit/Tags/Index.js" />
 }
 
@@ -23,16 +25,20 @@
     @await Component.InvokeAsync(typeof(AbpPageToolbarViewComponent), new { pageName = typeof(IndexModel).FullName })
 }
 
-<div id="CmsKitTagsWrapper">
-    <abp-card>
-        <abp-card-body>
+<abp-card class="mb-4">
+    <abp-card-body>
+        <div id="CmsKitTagsWrapper">
             <abp-row>
                 <abp-column>
                     @await Component.InvokeAsync(typeof(AbpPageSearchBoxViewComponent))
                 </abp-column>
             </abp-row>
-        </abp-card-body>
-    </abp-card>
-    <abp-table striped-rows="true" id="TagsTable"></abp-table>
-</div>
+        </div>
+    </abp-card-body>
+</abp-card>
 
+<abp-card>
+    <abp-card-body>
+        <abp-table  id="TagsTable"></abp-table>
+    </abp-card-body>
+</abp-card>

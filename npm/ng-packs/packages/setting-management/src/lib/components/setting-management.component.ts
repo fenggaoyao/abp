@@ -1,42 +1,47 @@
-import { ABP, SettingTabsService } from '@abp/ng.core';
-import { Component, OnDestroy, OnInit, TrackByFunction } from '@angular/core';
-import { Store } from '@ngxs/store';
-import { Subscription } from 'rxjs';
-import { SetSelectedSettingTab } from '../actions/setting-management.actions';
-import { SettingManagementState } from '../states/setting-management.state';
+import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
+import { Tab as NgTab, TabContent, TabList, TabPanel, Tabs } from '@angular/aria/tabs';
+import { NgComponentOutlet } from '@angular/common';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { ABP, ForDirective, LocalizationPipe, PermissionDirective } from '@abp/ng.core';
+import { SettingTabsService } from '@abp/ng.setting-management/config';
+import { PageComponent } from '@abp/ng.components/page';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'abp-setting-management',
   templateUrl: './setting-management.component.html',
+  imports: [
+    NgComponentOutlet,
+    PageComponent,
+    LocalizationPipe,
+    PermissionDirective,
+    ForDirective,
+    Tabs,
+    TabList,
+    NgTab,
+    TabPanel,
+    TabContent,
+  ],
+  styles: [
+    `
+      :host [ngTabPanel][inert] {
+        display: none;
+      }
+    `,
+  ],
 })
-export class SettingManagementComponent implements OnDestroy, OnInit {
-  private subscription = new Subscription();
-  settings: ABP.Tab[] = [];
+export class SettingManagementComponent {
+  private settingTabsService = inject(SettingTabsService);
 
-  set selected(value: ABP.Tab) {
-    this.store.dispatch(new SetSelectedSettingTab(value));
-  }
-  get selected(): ABP.Tab {
-    const value = this.store.selectSnapshot(SettingManagementState.getSelectedTab);
+  readonly settings = toSignal(this.settingTabsService.visible$, { initialValue: [] });
+  readonly selected = signal<ABP.Tab | undefined>(undefined);
 
-    return value?.component ? value : this.settings[0] || ({} as ABP.Tab);
-  }
-
-  trackByFn: TrackByFunction<ABP.Tab> = (_, item) => item.name;
-
-  constructor(private store: Store, private settingTabsService: SettingTabsService) {}
-
-  ngOnDestroy() {
-    this.subscription.unsubscribe();
-  }
-
-  ngOnInit() {
-    this.subscription.add(
-      this.settingTabsService.visible$.subscribe(settings => {
-        this.settings = settings;
-
-        if (!this.selected) this.selected = this.settings[0];
-      }),
-    );
+  constructor() {
+    effect(() => {
+      const settings = this.settings();
+      if (!this.selected() && settings.length) {
+        this.selected.set(settings[0] as ABP.Tab);
+      }
+    });
   }
 }

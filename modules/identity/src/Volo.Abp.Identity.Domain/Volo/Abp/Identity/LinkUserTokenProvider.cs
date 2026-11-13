@@ -1,17 +1,25 @@
-﻿using System.Threading.Tasks;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Volo.Abp.Identity;
+using Volo.Abp.Threading;
 
-namespace Volo.Abp.Identity
+namespace Volo.Abp.Identity;
+
+/// <summary>
+/// Link-user token provider that enforces, per purpose, only the most recently issued
+/// token to be valid, with a configurable expiration period.
+/// </summary>
+public class LinkUserTokenProvider : AbpSingleActiveTokenProvider
 {
-    public class LinkUserTokenProvider : TotpSecurityStampBasedTokenProvider<IdentityUser>
+    public LinkUserTokenProvider(
+        IDataProtectionProvider dataProtectionProvider,
+        IOptions<AbpLinkUserTokenProviderOptions> options,
+        ILogger<AbpSingleActiveTokenProvider> logger,
+        IIdentityUserRepository userRepository,
+        ICancellationTokenProvider cancellationTokenProvider)
+        : base(dataProtectionProvider, options, logger, userRepository, cancellationTokenProvider)
     {
-        public const string LinkUserTokenProviderName = "AbpLinkUser";
-
-        public const string LinkUserTokenPurpose = "AbpLinkUserLogin";
-
-        public override Task<bool> CanGenerateTwoFactorTokenAsync(UserManager<IdentityUser> manager, IdentityUser user)
-        {
-            return Task.FromResult(false);
-        }
     }
 }

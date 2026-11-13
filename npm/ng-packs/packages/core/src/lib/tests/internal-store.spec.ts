@@ -1,7 +1,7 @@
 import clone from 'just-clone';
 import { take } from 'rxjs/operators';
-import { DeepPartial } from '../models';
-import { InternalStore } from '../utils';
+import { DeepPartial } from '../models/utility';
+import { InternalStore } from '../utils/internal-store-utils';
 
 const mockInitialState = {
   foo: {
@@ -17,13 +17,17 @@ const mockInitialState = {
 
 type MockState = typeof mockInitialState;
 
-const deepPatch1: DeepPartial<MockState> = { foo: { bar: { baz: [() => {}] } } };
+const deepPatch1: DeepPartial<MockState> = {
+  foo: { bar: { baz: [() => {}] } },
+};
 const deepPatchExpected1: MockState = clone(mockInitialState);
 deepPatchExpected1.foo.bar.baz = deepPatch1.foo.bar.baz;
 
-const deepPatch2: DeepPartial<MockState> = { foo: { bar: { qux: Promise.resolve() } } };
+const deepPatch2: DeepPartial<MockState> = {
+  foo: { bar: { qux: Promise.resolve() } },
+};
 const deepPatchExpected2: MockState = clone(mockInitialState);
-deepPatchExpected2.foo.bar.qux = deepPatch2.foo.bar.qux;
+deepPatchExpected2.foo.bar.qux = deepPatch2.foo.bar.qux as any;
 
 const deepPatch3: DeepPartial<MockState> = { foo: { n: 1 } };
 const deepPatchExpected3: MockState = clone(mockInitialState);
@@ -49,7 +53,9 @@ const patch2: Partial<MockState> = {
 const patchExpected2: MockState = clone(mockInitialState);
 patchExpected2.foo = patch2.foo;
 
-const patch3: Partial<MockState> = { foo: { n: 1 } as typeof mockInitialState.foo };
+const patch3: Partial<MockState> = {
+  foo: { n: 1 } as typeof mockInitialState.foo,
+};
 const patchExpected3: MockState = clone(mockInitialState);
 patchExpected3.foo = patch3.foo;
 
@@ -118,18 +124,20 @@ describe('Internal Store', () => {
   });
 
   describe('sliceUpdate', () => {
-    it('should return slice of update$ based on selector', done => {
+    it('should return slice of update$ based on selector', () => {
       const store = new InternalStore(mockInitialState);
 
       const onQux$ = store.sliceUpdate(state => state.foo.bar.qux);
 
-      onQux$.pipe(take(1)).subscribe(value => {
-        expect(value).toEqual(deepPatch2.foo.bar.qux);
-        done();
-      });
+      return new Promise<void>(resolve => {
+        onQux$.pipe(take(1)).subscribe(value => {
+          expect(value).toEqual(deepPatch2.foo.bar.qux);
+          resolve();
+        });
 
-      store.deepPatch(deepPatch1);
-      store.deepPatch(deepPatch2);
+        store.deepPatch(deepPatch1);
+        store.deepPatch(deepPatch2);
+      });
     });
   });
 

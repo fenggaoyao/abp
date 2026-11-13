@@ -1,4 +1,4 @@
-﻿var abp = abp || {};
+var abp = abp || {};
 (function ($) {
 
     var datatables = abp.utils.createNamespace(abp, 'libs.datatables');
@@ -32,20 +32,32 @@
         }
 
         var _createDropdownItem = function (record, fieldItem, tableInstance) {
+            if (fieldItem.divider) {
+                if (abp.utils.isFunction(fieldItem.divider)) {
+                    return $(fieldItem.divider(record, tableInstance));
+                }
+
+                if (fieldItem.divider === true) {
+                    return $('<li><hr class="dropdown-divider"></li>');
+                }
+
+                return $(fieldItem.divider);
+            }
+
             var $li = $('<li/>');
-            var $a = $('<a/>');
+            var $a = $('<a/>').addClass('dropdown-item');
 
             if (fieldItem.displayNameHtml) {
-                $a.html(fieldItem.text);
+                $a.html(abp.utils.isFunction(fieldItem.text) ? fieldItem.text(record, tableInstance) : fieldItem.text);
             } else {
 
                 if (fieldItem.icon !== undefined && fieldItem.icon) {
-                    $a.append($("<i>").addClass("fa fa-" + fieldItem.icon + " mr-1"));
+                    $a.append($("<i>").addClass("fa fa-" + fieldItem.icon + " me-1"));
                 } else if (fieldItem.iconClass) {
-                    $a.append($("<i>").addClass(fieldItem.iconClass + " mr-1"));
+                    $a.append($("<i>").addClass(fieldItem.iconClass + " me-1"));
                 }
 
-                $a.append(htmlEncode(fieldItem.text));
+                $a.append(htmlEncode(abp.utils.isFunction(fieldItem.text) ? fieldItem.text(record, tableInstance) : fieldItem.text));
             }
 
             if (fieldItem.action) {
@@ -72,23 +84,20 @@
         };
 
         var _createButtonDropdown = function (record, field, tableInstance) {
-            if(field.items.length === 1) {
+            if (field.items.length === 1 && getVisibilityValue(field.items[0].visible, record, tableInstance)) {
                 var firstItem = field.items[0];
-                if (!getVisibilityValue(firstItem.visible, record, tableInstance)) {
-                    return "";
-                }
-
-                var $button = $('<button type="button" class="btn btn-primary"></button>');
+                
+                var $button = $('<button type="button" class="btn btn-primary btn-sm abp-action-button"></button>');
 
                 if (firstItem.displayNameHtml) {
-                    $button.html(firstItem.text);
+                    $button.html(abp.utils.isFunction(firstItem.text) ? firstItem.text(record, tableInstance) : firstItem.text);
                 } else {
                     if (firstItem.icon !== undefined && firstItem.icon) {
-                        $button.append($("<i>").addClass("fa fa-" + firstItem.icon + " mr-1"));
+                        $button.append($("<i>").addClass("fa fa-" + firstItem.icon + " me-1"));
                     } else if (firstItem.iconClass) {
-                        $button.append($("<i>").addClass(firstItem.iconClass + " mr-1"));
+                        $button.append($("<i>").addClass(firstItem.iconClass + " me-1"));
                     }
-                    $button.append(htmlEncode(firstItem.text));
+                    $button.append(htmlEncode(abp.utils.isFunction(firstItem.text) ? firstItem.text(record, tableInstance) : firstItem.text));
                 }
 
                 if (firstItem.enabled && !firstItem.enabled({ record: record, table: tableInstance })) {
@@ -119,27 +128,27 @@
 
             var $container = $('<div/>')
                 .addClass('dropdown')
-                .addClass('action-button');
+                .addClass('abp-action-button');
 
             var $dropdownButton = $('<button/>');
 
             if (field.icon !== undefined && field.icon) {
-                $dropdownButton.append($("<i>").addClass("fa fa-" + field.icon + " mr-1"));
+                $dropdownButton.append($("<i>").addClass("fa fa-" + field.icon + " me-1"));
             } else if (field.iconClass) {
-                $dropdownButton.append($("<i>").addClass(field.iconClass + " mr-1"));
+                $dropdownButton.append($("<i>").addClass(field.iconClass + " me-1"));
             } else {
-                $dropdownButton.append($("<i>").addClass("fa fa-cog mr-1"));
+                $dropdownButton.append($("<i>").addClass("fa fa-cog me-1"));
             }
 
             if (field.text) {
-                $dropdownButton.append(htmlEncode(fieldItem.text));
+                $dropdownButton.append(htmlEncode(abp.utils.isFunction(field.text) ? field.text(record, tableInstance) : field.text));
             } else {
                 $dropdownButton.append(htmlEncode(localize("DatatableActionDropdownDefaultText")));
             }
 
             $dropdownButton
                 .addClass('btn btn-primary btn-sm dropdown-toggle')
-                .attr('data-toggle', 'dropdown')
+                .attr('data-bs-toggle', 'dropdown')
                 .attr('aria-haspopup', 'true')
                 .attr('aria-expanded', 'false');
 
@@ -147,8 +156,9 @@
                 $dropdownButton.addClass(field.cssClass);
             }
 
+            var isEntityActionsDisabled = true;
             var $dropdownItemsContainer = $('<ul/>').addClass('dropdown-menu');
-
+            
             for (var i = 0; i < field.items.length; i++) {
                 var fieldItem = field.items[i];
 
@@ -157,6 +167,7 @@
                     continue;
                 }
 
+                isEntityActionsDisabled = false;
                 var $dropdownItem = _createDropdownItem(record, fieldItem, tableInstance);
 
                 if (fieldItem.enabled && !fieldItem.enabled({ record: record, table: tableInstance })) {
@@ -168,11 +179,30 @@
 
             if ($dropdownItemsContainer.find('li').length > 0) {
                 $dropdownItemsContainer.appendTo($container);
-                $dropdownButton.appendTo($container);
             }
 
-            if ($dropdownItemsContainer.children().length === 0) {
-                return "";
+            if (isEntityActionsDisabled) {
+                
+                $dropdownButton.attr('disabled', 'disabled');
+
+                var $tooltip = $('<div/>');
+                $tooltip.attr('title', localize("EntityActionsDisabledTooltip"));
+                $tooltip.attr('data-bs-toggle', 'tooltip');
+                new bootstrap.Tooltip($tooltip);
+
+                $dropdownButton.appendTo($tooltip);
+                $tooltip.prependTo($container);
+            }else{
+                $dropdownButton.prependTo($container);
+            }
+
+            if (bootstrap) {
+                new bootstrap.Dropdown($dropdownButton, {
+                    popperConfig(defaultBsPopperConfig) {
+                        defaultBsPopperConfig.strategy = "fixed";
+                        return defaultBsPopperConfig;
+                    }
+                })
             }
 
             return $container;
@@ -206,7 +236,7 @@
         };
 
         var hideColumnWithoutRedraw = function (tableInstance, colIndex) {
-            tableInstance.fnSetColumnVis(colIndex, false, false);
+            tableInstance.api().column(colIndex).visible(false, false);
         };
 
         var hideEmptyColumn = function (cellContent, tableInstance, colIndex) {
@@ -220,15 +250,20 @@
 
             if (tableInstance.aoColumns) {
                 columns = tableInstance.aoColumns;
-            } else {
+            } else if (abp.utils.isFunction(tableInstance.fnSettings)) {
                 columns = tableInstance.fnSettings().aoColumns;
+            }
+
+            if (!columns && abp.utils.isFunction(tableInstance.api)) {
+                var settings = tableInstance.api().settings();
+                if (settings.length === 1 && settings[0].aoColumns) {
+                    columns = settings[0].aoColumns;
+                }
             }
 
             if (!columns) {
                 return;
             }
-
-            var cells = $(nRow).children("td");
 
             for (var colIndex = 0; colIndex < columns.length; colIndex++) {
                 var column = columns[colIndex];
@@ -236,16 +271,26 @@
                     var $actionContainer = _createRowAction(aData, column.rowAction, tableInstance);
                     hideEmptyColumn($actionContainer, tableInstance, colIndex);
 
-                    var $actionButton = $(cells[colIndex]).find(".action-button");
-                    if ($actionButton.length === 0) {
-                        $(cells[colIndex]).append($actionContainer);
+                    if ($actionContainer) {
+                        var cells = $(nRow).children("td");
+                        for (var i = 0; i < cells.length; i++) {
+                            var cell = cells[i];
+                            if (cell._DT_CellIndex && cell._DT_CellIndex.column === colIndex) {
+                                var $actionButton = $(cell).find(".abp-action-button");
+                                if ($actionButton.length === 0) {
+                                    $(cell).empty().append($actionContainer);
+                                };
+                                break;
+                            }
+                        }
                     }
                 }
             }
         };
 
-        var _existingApiRenderRowActionsFunction = $.fn.dataTableExt.oApi.renderRowActions;
-        $.fn.dataTableExt.oApi.renderRowActions =
+        if ($.fn.dataTableExt.oApi) {
+            var _existingApiRenderRowActionsFunction = $.fn.dataTableExt.oApi.renderRowActions;
+            $.fn.dataTableExt.oApi.renderRowActions =
             function (tableInstance, nRow, aData, iDisplayIndex, iDisplayIndexFull) {
                 if (_existingApiRenderRowActionsFunction) {
                     _existingApiRenderRowActionsFunction(tableInstance, nRow, aData, iDisplayIndex, iDisplayIndexFull);
@@ -253,7 +298,8 @@
 
                 renderRowActions(tableInstance, nRow, aData, iDisplayIndex, iDisplayIndexFull);
             };
-
+        }
+        
         if (!$.fn.dataTable) {
             return;
         }
@@ -264,14 +310,14 @@
             {
                 fnRowCallback: function (nRow, aData, iDisplayIndex, iDisplayIndexFull) {
                     if (_existingDefaultFnRowCallback) {
-                        _existingDefaultFnRowCallback(this, nRow, aData, iDisplayIndex, iDisplayIndexFull);
+                        _existingDefaultFnRowCallback(nRow, aData, iDisplayIndex, iDisplayIndexFull);
                     }
 
                     renderRowActions(this, nRow, aData, iDisplayIndex, iDisplayIndexFull);
                 }
             });
 
-       //Delay for processing indicator
+        //Delay for processing indicator
         var defaultDelayForProcessingIndicator = 500;
         var _existingDefaultFnPreDrawCallback = $.fn.dataTable.defaults.fnPreDrawCallback;
         $.extend(true,
@@ -319,24 +365,38 @@
                 }
             });
 
+        $.fn.dataTable.Api.register('ajax.reloadEx()', function (callback, resetPaging) {
+            var table = this;
+            if (callback || resetPaging) {
+                table.ajax.reload(callback, resetPaging);
+                return;
+            }
+            table.ajax.reload(function (data) {
+                if (data.data.length <= 0 && table.page.info().pages > 0) {
+                    table.page(table.page.info().pages - 1).draw(false);
+                }
+            }, false);
+        });
+
     })();
 
     /************************************************************************
      * AJAX extension for datatables                                         *
      *************************************************************************/
     (function () {
-        datatables.createAjax = function (serverMethod, inputAction, responseCallback) {
-            responseCallback = responseCallback || function(result) {
+        datatables.createAjax = function (serverMethod, inputAction, responseCallback, cancelPreviousRequest) {
+            responseCallback = responseCallback || function (result) {
                 return {
                     recordsTotal: result.totalCount,
                     recordsFiltered: result.totalCount,
                     data: result.items
                 };
             }
+            var promise = null;
             return function (requestData, callback, settings) {
                 var input = typeof inputAction === 'function'
                     ? inputAction(requestData, settings)
-                    : typeof inputAction === 'object'
+                    : (typeof inputAction === 'object' && inputAction)
                         ? inputAction : {};
 
                 //Paging
@@ -363,12 +423,22 @@
                 }
 
                 //Text filter
-                if (requestData.search && requestData.search.value !== "") {
-                    input.filter = requestData.search.value;
+                if (settings.oInit.searching !== false) {
+                    if (requestData.search && requestData.search.value !== "") {
+                        input.filter = requestData.search.value;
+                    } else {
+                        input.filter = null;
+                    }
                 }
 
                 if (callback) {
-                    serverMethod(input).then(function (result) {
+                    if (cancelPreviousRequest && promise && promise.jqXHR) {
+                        promise.jqXHR.abort();
+                    }
+                    promise = serverMethod(input);
+                    promise.always(function () {
+                        promise = null;
+                    }).then(function (result) {
                         callback(responseCallback(result));
                     });
                 }
@@ -408,6 +478,10 @@
                     }
                 }
 
+                if (!column.render) {
+                    column.render = $.fn.dataTable.render.text();
+                }
+
                 if (column.rowAction) {
                     customizeRowActionColumn(column);
                 }
@@ -415,9 +489,7 @@
 
             configuration.language = datatables.defaultConfigurations.language();
 
-            if(configuration.dom){
-                configuration.dom += datatables.defaultConfigurations.dom;
-            }else{
+            if (!configuration.dom) {
                 configuration.dom = datatables.defaultConfigurations.dom;
             }
 
@@ -431,7 +503,7 @@
 
     datatables.defaultRenderers = datatables.defaultRenderers || {};
 
-    datatables.defaultRenderers['boolean'] = function(value) {
+    datatables.defaultRenderers['boolean'] = function (value) {
         if (value) {
             return '<i class="fa fa-check"></i>';
         } else {
@@ -439,23 +511,28 @@
         }
     };
 
-    var ISOStringToDateTimeLocaleString = function (format) {
-        return function(data) {
-            var date = luxon
-                .DateTime
-                .fromISO(data, {
-                    locale: abp.localization.currentCulture.name
-                });
-            return format ? date.toLocaleString(format) : date.toLocaleString();
-        };
+    datatables.defaultRenderers['date'] = function (value) {
+        if (!value) {
+            return value;
+        } else {
+            return abp.clock.normalizeToLocaleString(value, { year: 'numeric', month: '2-digit', day: '2-digit' });
+        }
     };
 
-    datatables.defaultRenderers['date'] = function (value) {
-        return (ISOStringToDateTimeLocaleString())(value);
+    datatables.defaultRenderers['time'] = function (value) {
+        if (!value) {
+            return value;
+        } else {
+            return abp.clock.normalizeToLocaleString(value, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
     };
 
     datatables.defaultRenderers['datetime'] = function (value) {
-        return (ISOStringToDateTimeLocaleString(luxon.DateTime.DATETIME_SHORT))(value);
+        if (!value) {
+            return value;
+        } else {
+            return abp.clock.normalizeToLocaleString(value);
+        }
     };
 
     /************************************************************************
@@ -487,6 +564,6 @@
         };
     };
 
-    datatables.defaultConfigurations.dom = '<"dataTable_filters"f>rt<"row dataTable_footer"<"col-auto"l><"col-auto mr-auto"i><"col-auto"p>>';
+    datatables.defaultConfigurations.dom = '<"dataTable_filters row"f>rt<"row dataTable_footer"<"col-auto"l><"col-auto me-auto"i><"col-auto"p>>';
 
 })(jQuery);

@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Blazorise;
 using Blazorise.DataGrid;
-using JetBrains.Annotations;
 using Localization.Resources.AbpUi;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
@@ -12,282 +11,329 @@ using Microsoft.Extensions.Localization;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
 using Volo.Abp.AspNetCore.Components;
+using Volo.Abp.Localization;
 using Volo.Abp.Authorization;
 using Volo.Abp.BlazoriseUI.Components;
+using Volo.Abp.ObjectExtending.Modularity;
+using Volo.Abp.ObjectExtending;
+using Volo.Abp.AspNetCore.Components.Web.Extensibility.EntityActions;
+using Volo.Abp.AspNetCore.Components.Web.Extensibility.TableColumns;
 
-namespace Volo.Abp.BlazoriseUI
+namespace Volo.Abp.BlazoriseUI;
+
+public abstract class AbpCrudPageBase<
+        TAppService,
+        TEntityDto,
+        TKey>
+    : AbpCrudPageBase<
+        TAppService,
+        TEntityDto,
+        TKey,
+        PagedAndSortedResultRequestDto>
+    where TAppService : ICrudAppService<
+        TEntityDto,
+        TKey>
+    where TEntityDto : class, IEntityDto<TKey>, new()
 {
-    public abstract class AbpCrudPageBase<
-            TAppService,
-            TEntityDto,
-            TKey>
-        : AbpCrudPageBase<
-            TAppService,
-            TEntityDto,
-            TKey,
-            PagedAndSortedResultRequestDto>
-        where TAppService : ICrudAppService<
-            TEntityDto,
-            TKey>
-        where TEntityDto : class, IEntityDto<TKey>, new()
+}
+
+public abstract class AbpCrudPageBase<
+        TAppService,
+        TEntityDto,
+        TKey,
+        TGetListInput>
+    : AbpCrudPageBase<
+        TAppService,
+        TEntityDto,
+        TKey,
+        TGetListInput,
+        TEntityDto>
+    where TAppService : ICrudAppService<
+        TEntityDto,
+        TKey,
+        TGetListInput>
+    where TEntityDto : class, IEntityDto<TKey>, new()
+    where TGetListInput : new()
+{
+}
+
+public abstract class AbpCrudPageBase<
+        TAppService,
+        TEntityDto,
+        TKey,
+        TGetListInput,
+        TCreateInput>
+    : AbpCrudPageBase<
+        TAppService,
+        TEntityDto,
+        TKey,
+        TGetListInput,
+        TCreateInput,
+        TCreateInput>
+    where TAppService : ICrudAppService<
+        TEntityDto,
+        TKey,
+        TGetListInput,
+        TCreateInput>
+    where TEntityDto : IEntityDto<TKey>
+    where TCreateInput : class, new()
+    where TGetListInput : new()
+{
+}
+
+public abstract class AbpCrudPageBase<
+        TAppService,
+        TEntityDto,
+        TKey,
+        TGetListInput,
+        TCreateInput,
+        TUpdateInput>
+    : AbpCrudPageBase<
+        TAppService,
+        TEntityDto,
+        TEntityDto,
+        TKey,
+        TGetListInput,
+        TCreateInput,
+        TUpdateInput>
+    where TAppService : ICrudAppService<
+        TEntityDto,
+        TKey,
+        TGetListInput,
+        TCreateInput,
+        TUpdateInput>
+    where TEntityDto : IEntityDto<TKey>
+    where TCreateInput : class, new()
+    where TUpdateInput : class, new()
+    where TGetListInput : new()
+{
+}
+
+public abstract class AbpCrudPageBase<
+        TAppService,
+        TGetOutputDto,
+        TGetListOutputDto,
+        TKey,
+        TGetListInput,
+        TCreateInput,
+        TUpdateInput>
+    : AbpCrudPageBase<
+        TAppService,
+        TGetOutputDto,
+        TGetListOutputDto,
+        TKey,
+        TGetListInput,
+        TCreateInput,
+        TUpdateInput,
+        TGetListOutputDto,
+        TCreateInput,
+        TUpdateInput>
+    where TAppService : ICrudAppService<
+        TGetOutputDto,
+        TGetListOutputDto,
+        TKey,
+        TGetListInput,
+        TCreateInput,
+        TUpdateInput>
+    where TGetOutputDto : IEntityDto<TKey>
+    where TGetListOutputDto : IEntityDto<TKey>
+    where TCreateInput : class, new()
+    where TUpdateInput : class, new()
+    where TGetListInput : new()
+{
+}
+
+public abstract class AbpCrudPageBase<
+        TAppService,
+        TGetOutputDto,
+        TGetListOutputDto,
+        TKey,
+        TGetListInput,
+        TCreateInput,
+        TUpdateInput,
+        TListViewModel,
+        TCreateViewModel,
+        TUpdateViewModel>
+    : AbpComponentBase
+    where TAppService : ICrudAppService<
+        TGetOutputDto,
+        TGetListOutputDto,
+        TKey,
+        TGetListInput,
+        TCreateInput,
+        TUpdateInput>
+    where TGetOutputDto : IEntityDto<TKey>
+    where TGetListOutputDto : IEntityDto<TKey>
+    where TCreateInput : class
+    where TUpdateInput : class
+    where TGetListInput : new()
+    where TListViewModel : IEntityDto<TKey>
+    where TCreateViewModel : class, new()
+    where TUpdateViewModel : class, new()
+{
+    [Inject] protected TAppService AppService { get; set; } = default!;
+    [Inject] protected IStringLocalizer<AbpUiResource> UiLocalizer { get; set; } = default!;
+    [Inject] public IAbpEnumLocalizer AbpEnumLocalizer { get; set; } = default!;
+    [Inject]protected ExtensionPropertyPolicyChecker ExtensionPropertyPolicyChecker { get; set; } = default!;
+    protected virtual int PageSize { get; } = LimitedResultRequestDto.DefaultMaxResultCount;
+
+    protected int CurrentPage = 1;
+    protected string CurrentSorting = default!;
+    protected int? TotalCount;
+    protected TGetListInput GetListInput = new TGetListInput();
+    protected IReadOnlyList<TListViewModel> Entities = Array.Empty<TListViewModel>();
+    protected TCreateViewModel NewEntity;
+    protected TKey EditingEntityId = default!;
+    protected TUpdateViewModel EditingEntity;
+    protected Modal? CreateModal;
+    protected Modal? EditModal;
+    protected Validations? CreateValidationsRef;
+    protected Validations? EditValidationsRef;
+    protected List<BreadcrumbItem> BreadcrumbItems = new List<BreadcrumbItem>(2);
+    protected DataGridEntityActionsColumn<TListViewModel> EntityActionsColumn = default!;
+    protected EntityActionDictionary EntityActions { get; set; }
+    protected TableColumnDictionary TableColumns { get; set; }
+
+    protected string? CreatePolicyName { get; set; }
+    protected string? UpdatePolicyName { get; set; }
+    protected string? DeletePolicyName { get; set; }
+
+    public bool HasCreatePermission { get; set; }
+    public bool HasUpdatePermission { get; set; }
+    public bool HasDeletePermission { get; set; }
+
+    protected AbpCrudPageBase()
     {
+        NewEntity = new TCreateViewModel();
+        EditingEntity = new TUpdateViewModel();
+        TableColumns = new TableColumnDictionary();
+        EntityActions = new EntityActionDictionary();
     }
 
-    public abstract class AbpCrudPageBase<
-            TAppService,
-            TEntityDto,
-            TKey,
-            TGetListInput>
-        : AbpCrudPageBase<
-            TAppService,
-            TEntityDto,
-            TKey,
-            TGetListInput,
-            TEntityDto>
-        where TAppService : ICrudAppService<
-            TEntityDto,
-            TKey,
-            TGetListInput>
-        where TEntityDto : class, IEntityDto<TKey>, new()
-        where TGetListInput : new()
+    protected async override Task OnInitializedAsync()
     {
+        await TrySetPermissionsAsync();
+        await TrySetEntityActionsAsync();
+        await TrySetTableColumnsAsync();
+        await InvokeAsync(StateHasChanged);
     }
 
-    public abstract class AbpCrudPageBase<
-            TAppService,
-            TEntityDto,
-            TKey,
-            TGetListInput,
-            TCreateInput>
-        : AbpCrudPageBase<
-            TAppService,
-            TEntityDto,
-            TKey,
-            TGetListInput,
-            TCreateInput,
-            TCreateInput>
-        where TAppService : ICrudAppService<
-            TEntityDto,
-            TKey,
-            TGetListInput,
-            TCreateInput>
-        where TEntityDto : IEntityDto<TKey>
-        where TCreateInput : class, new()
-        where TGetListInput : new()
+    protected async override Task OnAfterRenderAsync(bool firstRender)
     {
-    }
-
-    public abstract class AbpCrudPageBase<
-            TAppService,
-            TEntityDto,
-            TKey,
-            TGetListInput,
-            TCreateInput,
-            TUpdateInput>
-        : AbpCrudPageBase<
-            TAppService,
-            TEntityDto,
-            TEntityDto,
-            TKey,
-            TGetListInput,
-            TCreateInput,
-            TUpdateInput>
-        where TAppService : ICrudAppService<
-            TEntityDto,
-            TKey,
-            TGetListInput,
-            TCreateInput,
-            TUpdateInput>
-        where TEntityDto : IEntityDto<TKey>
-        where TCreateInput : class, new()
-        where TUpdateInput : class, new()
-        where TGetListInput : new()
-    {
-    }
-
-    public abstract class AbpCrudPageBase<
-            TAppService,
-            TGetOutputDto,
-            TGetListOutputDto,
-            TKey,
-            TGetListInput,
-            TCreateInput,
-            TUpdateInput>
-        : AbpCrudPageBase<
-            TAppService,
-            TGetOutputDto,
-            TGetListOutputDto,
-            TKey,
-            TGetListInput,
-            TCreateInput,
-            TUpdateInput,
-            TGetListOutputDto,
-            TCreateInput,
-            TUpdateInput>
-        where TAppService : ICrudAppService<
-            TGetOutputDto,
-            TGetListOutputDto,
-            TKey,
-            TGetListInput,
-            TCreateInput,
-            TUpdateInput>
-        where TGetOutputDto : IEntityDto<TKey>
-        where TGetListOutputDto : IEntityDto<TKey>
-        where TCreateInput : class, new()
-        where TUpdateInput : class, new()
-        where TGetListInput : new()
-    {
-    }
-
-    public abstract class AbpCrudPageBase<
-            TAppService,
-            TGetOutputDto,
-            TGetListOutputDto,
-            TKey,
-            TGetListInput,
-            TCreateInput,
-            TUpdateInput,
-            TListViewModel,
-            TCreateViewModel,
-            TUpdateViewModel>
-        : AbpComponentBase
-        where TAppService : ICrudAppService<
-            TGetOutputDto,
-            TGetListOutputDto,
-            TKey,
-            TGetListInput,
-            TCreateInput,
-            TUpdateInput>
-        where TGetOutputDto : IEntityDto<TKey>
-        where TGetListOutputDto : IEntityDto<TKey>
-        where TCreateInput : class
-        where TUpdateInput : class
-        where TGetListInput : new()
-        where TListViewModel : IEntityDto<TKey>
-        where TCreateViewModel : class, new()
-        where TUpdateViewModel : class, new()
-    {
-        [Inject] protected TAppService AppService { get; set; }
-        [Inject] protected IStringLocalizer<AbpUiResource> UiLocalizer { get; set; }
-
-        protected virtual int PageSize { get; } = LimitedResultRequestDto.DefaultMaxResultCount;
-
-        protected int CurrentPage = 1;
-        protected string CurrentSorting;
-        protected int? TotalCount;
-        protected TGetListInput GetListInput = new TGetListInput();
-        protected IReadOnlyList<TListViewModel> Entities = Array.Empty<TListViewModel>();
-        protected TCreateViewModel NewEntity;
-        protected TKey EditingEntityId;
-        protected TUpdateViewModel EditingEntity;
-        protected Modal CreateModal;
-        protected Modal EditModal;
-        protected Validations CreateValidationsRef;
-        protected Validations EditValidationsRef;
-        protected List<BreadcrumbItem> BreadcrumbItems = new List<BreadcrumbItem>(2);
-        protected DataGridEntityActionsColumn<TListViewModel> EntityActionsColumn;
-
-        protected string CreatePolicyName { get; set; }
-        protected string UpdatePolicyName { get; set; }
-        protected string DeletePolicyName { get; set; }
-
-        public bool HasCreatePermission { get; set; }
-        public bool HasUpdatePermission { get; set; }
-        public bool HasDeletePermission { get; set; }
-
-        protected AbpCrudPageBase()
+        if (firstRender)
         {
-            NewEntity = new TCreateViewModel();
-            EditingEntity = new TUpdateViewModel();
-        }
-
-        protected override async Task OnInitializedAsync()
-        {
+            await SetToolbarItemsAsync();
             await SetBreadcrumbItemsAsync();
-            await SetPermissionsAsync();
         }
+        await base.OnAfterRenderAsync(firstRender);
+    }
 
-        protected virtual async Task SetPermissionsAsync()
+    private async Task TrySetPermissionsAsync()
+    {
+        if (IsDisposed)
         {
-            if (CreatePolicyName != null)
-            {
-                HasCreatePermission = await AuthorizationService.IsGrantedAsync(CreatePolicyName);
-            }
-
-            if (UpdatePolicyName != null)
-            {
-                HasUpdatePermission = await AuthorizationService.IsGrantedAsync(UpdatePolicyName);
-            }
-
-            if (DeletePolicyName != null)
-            {
-                HasDeletePermission = await AuthorizationService.IsGrantedAsync(DeletePolicyName);
-            }
+            return;
         }
 
-        protected virtual async Task GetEntitiesAsync()
+        await SetPermissionsAsync();
+    }
+
+    protected virtual async Task SetPermissionsAsync()
+    {
+        if (CreatePolicyName != null)
+        {
+            HasCreatePermission = await AuthorizationService.IsGrantedAsync(CreatePolicyName);
+        }
+
+        if (UpdatePolicyName != null)
+        {
+            HasUpdatePermission = await AuthorizationService.IsGrantedAsync(UpdatePolicyName);
+        }
+
+        if (DeletePolicyName != null)
+        {
+            HasDeletePermission = await AuthorizationService.IsGrantedAsync(DeletePolicyName);
+        }
+    }
+
+    protected virtual async Task GetEntitiesAsync()
+    {
+        try
         {
             await UpdateGetListInputAsync();
             var result = await AppService.GetListAsync(GetListInput);
             Entities = MapToListViewModel(result.Items);
             TotalCount = (int?)result.TotalCount;
         }
-
-        private IReadOnlyList<TListViewModel> MapToListViewModel(IReadOnlyList<TGetListOutputDto> dtos)
+        catch (Exception ex)
         {
-            if (typeof(TGetListOutputDto) == typeof(TListViewModel))
-            {
-                return dtos.As<IReadOnlyList<TListViewModel>>();
-            }
+            await HandleErrorAsync(ex);
+        }
+    }
 
-            return ObjectMapper.Map<IReadOnlyList<TGetListOutputDto>, List<TListViewModel>>(dtos);
+    private IReadOnlyList<TListViewModel> MapToListViewModel(IReadOnlyList<TGetListOutputDto> dtos)
+    {
+        if (typeof(TGetListOutputDto) == typeof(TListViewModel))
+        {
+            return dtos.As<IReadOnlyList<TListViewModel>>();
         }
 
-        protected virtual Task UpdateGetListInputAsync()
+        return ObjectMapper.Map<IReadOnlyList<TGetListOutputDto>, List<TListViewModel>>(dtos);
+    }
+
+    protected virtual Task UpdateGetListInputAsync()
+    {
+        if (GetListInput is ISortedResultRequest sortedResultRequestInput)
         {
-            if (GetListInput is ISortedResultRequest sortedResultRequestInput)
-            {
-                sortedResultRequestInput.Sorting = CurrentSorting;
-            }
-
-            if (GetListInput is IPagedResultRequest pagedResultRequestInput)
-            {
-                pagedResultRequestInput.SkipCount = (CurrentPage - 1) * PageSize;
-            }
-
-            if (GetListInput is ILimitedResultRequest limitedResultRequestInput)
-            {
-                limitedResultRequestInput.MaxResultCount = PageSize;
-            }
-
-            return Task.CompletedTask;
+            sortedResultRequestInput.Sorting = CurrentSorting;
         }
 
-        protected virtual async Task SearchEntitiesAsync()
+        if (GetListInput is IPagedResultRequest pagedResultRequestInput)
         {
-            CurrentPage = 1;
+            pagedResultRequestInput.SkipCount = (CurrentPage - 1) * PageSize;
+        }
 
+        if (GetListInput is ILimitedResultRequest limitedResultRequestInput)
+        {
+            limitedResultRequestInput.MaxResultCount = PageSize;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    protected virtual async Task SearchEntitiesAsync()
+    {
+        var currentPage = CurrentPage;
+        CurrentPage = 1;
+        if (currentPage == 1)
+        {
             await GetEntitiesAsync();
-
-            await InvokeAsync(StateHasChanged);
         }
+        await InvokeAsync(StateHasChanged);
+    }
 
-        protected virtual async Task OnDataGridReadAsync(DataGridReadDataEventArgs<TListViewModel> e)
+    protected virtual async Task OnDataGridReadAsync(DataGridReadDataEventArgs<TListViewModel> e)
+    {
+        CurrentSorting = e.Columns
+            .Where(c => c.SortDirection != SortDirection.Default)
+            .OrderBy(c => c.SortIndex)
+            .Select(c => c.SortField + (c.SortDirection == SortDirection.Descending ? " DESC" : ""))
+            .JoinAsString(",");
+        CurrentPage = e.Page;
+
+        await GetEntitiesAsync();
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    protected virtual async Task OpenCreateModalAsync()
+    {
+        try
         {
-            CurrentSorting = e.Columns
-                .Where(c => c.Direction != SortDirection.None)
-                .Select(c => c.Field + (c.Direction == SortDirection.Descending ? " DESC" : ""))
-                .JoinAsString(",");
-            CurrentPage = e.Page;
-
-            await GetEntitiesAsync();
-
-            await InvokeAsync(StateHasChanged);
-        }
-
-        protected virtual async Task OpenCreateModalAsync()
-        {
-            CreateValidationsRef?.ClearAll();
+            if (CreateValidationsRef != null)
+            {
+                await CreateValidationsRef.ClearAll();
+            }
 
             await CheckCreatePolicyAsync();
 
@@ -295,20 +341,44 @@ namespace Volo.Abp.BlazoriseUI
 
             // Mapper will not notify Blazor that binded values are changed
             // so we need to notify it manually by calling StateHasChanged
-            await InvokeAsync(StateHasChanged);
+            await InvokeAsync(async () =>
+            {
+                StateHasChanged();
+                if (CreateModal != null)
+                {
+                    await CreateModal.Show();
+                }
 
-            CreateModal.Show();
+            });
         }
-
-        protected virtual Task CloseCreateModalAsync()
+        catch (Exception ex)
         {
-            CreateModal.Hide();
-            return Task.CompletedTask;
+            await HandleErrorAsync(ex);
         }
+    }
 
-        protected virtual async Task OpenEditModalAsync(TListViewModel entity)
+    protected virtual async Task CloseCreateModalAsync()
+    {
+        await InvokeAsync(CreateModal!.Hide);
+        NewEntity = new TCreateViewModel();
+    }
+
+    protected virtual Task ClosingCreateModal(ModalClosingEventArgs eventArgs)
+    {
+        // cancel close if clicked outside of modal area
+        eventArgs.Cancel = eventArgs.CloseReason == CloseReason.FocusLostClosing;
+
+        return Task.CompletedTask;
+    }
+
+    protected virtual async Task OpenEditModalAsync(TListViewModel entity)
+    {
+        try
         {
-            EditValidationsRef?.ClearAll();
+            if (EditValidationsRef != null)
+            {
+                await EditValidationsRef.ClearAll();
+            }
 
             await CheckUpdatePolicyAsync();
 
@@ -317,45 +387,70 @@ namespace Volo.Abp.BlazoriseUI
             EditingEntityId = entity.Id;
             EditingEntity = MapToEditingEntity(entityDto);
 
-            await InvokeAsync(StateHasChanged);
-
-            EditModal.Show();
-        }
-
-        protected virtual TUpdateViewModel MapToEditingEntity(TGetOutputDto entityDto)
-        {
-            return ObjectMapper.Map<TGetOutputDto, TUpdateViewModel>(entityDto);
-        }
-
-        protected virtual TCreateInput MapToCreateInput(TCreateViewModel createViewModel)
-        {
-            if (typeof(TCreateInput) == typeof(TCreateViewModel))
+            await InvokeAsync(async () =>
             {
-                return createViewModel.As<TCreateInput>();
-            }
+                StateHasChanged();
+                if (EditModal != null)
+                {
+                    await EditModal.Show();
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            await HandleErrorAsync(ex);
+        }
+    }
 
-            return ObjectMapper.Map<TCreateViewModel, TCreateInput>(createViewModel);
+    protected virtual TUpdateViewModel MapToEditingEntity(TGetOutputDto entityDto)
+    {
+        return ObjectMapper.Map<TGetOutputDto, TUpdateViewModel>(entityDto);
+    }
+
+    protected virtual TCreateInput MapToCreateInput(TCreateViewModel createViewModel)
+    {
+        if (typeof(TCreateInput) == typeof(TCreateViewModel))
+        {
+            return createViewModel.As<TCreateInput>();
         }
 
-        protected virtual TUpdateInput MapToUpdateInput(TUpdateViewModel updateViewModel)
+        return ObjectMapper.Map<TCreateViewModel, TCreateInput>(createViewModel);
+    }
+
+    protected virtual TUpdateInput MapToUpdateInput(TUpdateViewModel updateViewModel)
+    {
+        if (typeof(TUpdateInput) == typeof(TUpdateViewModel))
         {
-            if (typeof(TUpdateInput) == typeof(TUpdateViewModel))
+            return updateViewModel.As<TUpdateInput>();
+        }
+
+        return ObjectMapper.Map<TUpdateViewModel, TUpdateInput>(updateViewModel);
+    }
+
+    protected virtual Task CloseEditModalAsync()
+    {
+        InvokeAsync(EditModal!.Hide);
+        return Task.CompletedTask;
+    }
+
+    protected virtual Task ClosingEditModal(ModalClosingEventArgs eventArgs)
+    {
+        // cancel close if clicked outside of modal area
+        eventArgs.Cancel = eventArgs.CloseReason == CloseReason.FocusLostClosing;
+
+        return Task.CompletedTask;
+    }
+
+    protected virtual async Task CreateEntityAsync()
+    {
+        try
+        {
+            var validate = true;
+            if (CreateValidationsRef != null)
             {
-                return updateViewModel.As<TUpdateInput>();
+                validate = await CreateValidationsRef.ValidateAll();
             }
-
-            return ObjectMapper.Map<TUpdateViewModel, TUpdateInput>(updateViewModel);
-        }
-
-        protected virtual Task CloseEditModalAsync()
-        {
-            EditModal.Hide();
-            return Task.CompletedTask;
-        }
-
-        protected virtual async Task CreateEntityAsync()
-        {
-            if (CreateValidationsRef?.ValidateAll() ?? true)
+            if (validate)
             {
                 await OnCreatingEntityAsync();
 
@@ -366,22 +461,41 @@ namespace Volo.Abp.BlazoriseUI
                 await OnCreatedEntityAsync();
             }
         }
-
-        protected virtual Task OnCreatingEntityAsync()
+        catch (Exception ex)
         {
-            return Task.CompletedTask;
+            await HandleErrorAsync(ex);
         }
+    }
 
-        protected virtual async Task OnCreatedEntityAsync()
+    protected virtual Task OnCreatingEntityAsync()
+    {
+        return Task.CompletedTask;
+    }
+
+    protected virtual async Task OnCreatedEntityAsync()
+    {
+        await GetEntitiesAsync();
+
+        await InvokeAsync(CreateModal!.Hide);
+        await Notify.Success(GetCreateMessage());
+        NewEntity = new TCreateViewModel();
+    }
+
+    protected virtual string GetCreateMessage()
+    {
+        return UiLocalizer["CreatedSuccessfully"];
+    }
+
+    protected virtual async Task UpdateEntityAsync()
+    {
+        try
         {
-            await GetEntitiesAsync();
-
-            CreateModal.Hide();
-        }
-
-        protected virtual async Task UpdateEntityAsync()
-        {
-            if (EditValidationsRef?.ValidateAll() ?? true)
+            var validate = true;
+            if (EditValidationsRef != null)
+            {
+                validate = await EditValidationsRef.ValidateAll();
+            }
+            if (validate)
             {
                 await OnUpdatingEntityAsync();
 
@@ -392,67 +506,194 @@ namespace Volo.Abp.BlazoriseUI
                 await OnUpdatedEntityAsync();
             }
         }
-
-        protected virtual Task OnUpdatingEntityAsync()
+        catch (Exception ex)
         {
-            return Task.CompletedTask;
+            await HandleErrorAsync(ex);
         }
+    }
 
-        protected virtual async Task OnUpdatedEntityAsync()
-        {
-            await GetEntitiesAsync();
+    protected virtual Task OnUpdatingEntityAsync()
+    {
+        return Task.CompletedTask;
+    }
 
-            EditModal.Hide();
-        }
+    protected virtual async Task OnUpdatedEntityAsync()
+    {
+        await GetEntitiesAsync();
 
-        protected virtual async Task DeleteEntityAsync(TListViewModel entity)
+        await InvokeAsync(EditModal!.Hide);
+        await Notify.Success(GetUpdateMessage());
+    }
+
+    protected virtual string GetUpdateMessage()
+    {
+        return UiLocalizer["SavedSuccessfully"];
+    }
+
+    protected virtual async Task DeleteEntityAsync(TListViewModel entity)
+    {
+        try
         {
             await CheckDeletePolicyAsync();
-
+            await OnDeletingEntityAsync();
             await AppService.DeleteAsync(entity.Id);
-            await GetEntitiesAsync();
+            await OnDeletedEntityAsync();
+        }
+        catch (Exception ex)
+        {
+            await HandleErrorAsync(ex);
+        }
+    }
+
+    protected virtual Task OnDeletingEntityAsync()
+    {
+        return Task.CompletedTask;
+    }
+
+    protected virtual async Task OnDeletedEntityAsync()
+    {
+        if (Entities.Count == 1 && CurrentPage > 1)
+        {
+            CurrentPage -= 1;
         }
 
-        protected virtual string GetDeleteConfirmationMessage(TListViewModel entity)
+        await GetEntitiesAsync();
+        await InvokeAsync(StateHasChanged);
+        await Notify.Success(GetDeleteMessage());
+    }
+
+    protected virtual string GetDeleteMessage()
+    {
+        return UiLocalizer["DeletedSuccessfully"];
+    }
+
+    protected virtual string GetDeleteConfirmationMessage(TListViewModel entity)
+    {
+        return UiLocalizer["ItemWillBeDeletedMessage"];
+    }
+
+    protected virtual async Task CheckCreatePolicyAsync()
+    {
+        await CheckPolicyAsync(CreatePolicyName);
+    }
+
+    protected virtual async Task CheckUpdatePolicyAsync()
+    {
+        await CheckPolicyAsync(UpdatePolicyName);
+    }
+
+    protected virtual async Task CheckDeletePolicyAsync()
+    {
+        await CheckPolicyAsync(DeletePolicyName);
+    }
+
+    /// <summary>
+    /// Calls IAuthorizationService.CheckAsync for the given <paramref name="policyName"/>.
+    /// Throws <see cref="AbpAuthorizationException"/> if given policy was not granted for the current user.
+    ///
+    /// Does nothing if <paramref name="policyName"/> is null or empty.
+    /// </summary>
+    /// <param name="policyName">A policy name to check</param>
+    protected virtual async Task CheckPolicyAsync(string? policyName)
+    {
+        if (string.IsNullOrEmpty(policyName))
         {
-            return UiLocalizer["ItemWillBeDeletedMessage"];
+            return;
         }
 
-        protected virtual async Task CheckCreatePolicyAsync()
+        await AuthorizationService.CheckAsync(policyName);
+    }
+
+    protected virtual ValueTask SetBreadcrumbItemsAsync()
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    private async ValueTask TrySetEntityActionsAsync()
+    {
+        if (IsDisposed)
         {
-            await CheckPolicyAsync(CreatePolicyName);
+            return;
         }
 
-        protected virtual async Task CheckUpdatePolicyAsync()
+        await SetEntityActionsAsync();
+    }
+
+    protected virtual ValueTask SetEntityActionsAsync()
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    private async ValueTask TrySetTableColumnsAsync()
+    {
+        if (IsDisposed)
         {
-            await CheckPolicyAsync(UpdatePolicyName);
+            return;
         }
 
-        protected virtual async Task CheckDeletePolicyAsync()
-        {
-            await CheckPolicyAsync(DeletePolicyName);
-        }
+        await SetTableColumnsAsync();
+    }
 
-        /// <summary>
-        /// Calls IAuthorizationService.CheckAsync for the given <paramref name="policyName"/>.
-        /// Throws <see cref="AbpAuthorizationException"/> if given policy was not granted for the current user.
-        ///
-        /// Does nothing if <paramref name="policyName"/> is null or empty.
-        /// </summary>
-        /// <param name="policyName">A policy name to check</param>
-        protected virtual async Task CheckPolicyAsync([CanBeNull] string policyName)
+    protected virtual ValueTask SetTableColumnsAsync()
+    {
+
+        return ValueTask.CompletedTask;
+    }
+
+    protected virtual ValueTask SetToolbarItemsAsync()
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    protected virtual async Task<List<TableColumn>> GetExtensionTableColumnsAsync(string moduleName, string entityType)
+    {
+        var tableColumns = new List<TableColumn>();
+        var properties = ModuleExtensionConfigurationHelper.GetPropertyConfigurations(moduleName, entityType).ToList();
+        foreach (var propertyInfo in properties)
         {
-            if (string.IsNullOrEmpty(policyName))
+            if (!await ExtensionPropertyPolicyChecker.CheckPolicyAsync(propertyInfo.Policy))
             {
-                return;
+                continue;
             }
 
-            await AuthorizationService.CheckAsync(policyName);
+            if (propertyInfo.IsAvailableToClients && propertyInfo.UI.OnTable.IsVisible)
+            {
+                if (propertyInfo.Name.EndsWith("_Text"))
+                {
+                    var lookupPropertyName = propertyInfo.Name.RemovePostFix("_Text");
+                    var lookupPropertyDefinition = properties.SingleOrDefault(t => t.Name == lookupPropertyName)!;
+                    tableColumns.Add(new TableColumn
+                    {
+                        Title = lookupPropertyDefinition.GetLocalizedDisplayName(StringLocalizerFactory),
+                        Data = $"ExtraProperties[{propertyInfo.Name}]",
+                        PropertyName = propertyInfo.Name
+                    });
+                }
+                else
+                {
+                    var column = new TableColumn
+                    {
+                        Title = propertyInfo.GetLocalizedDisplayName(StringLocalizerFactory),
+                        Data = $"ExtraProperties[{propertyInfo.Name}]",
+                        PropertyName = propertyInfo.Name
+                    };
+
+                    if (propertyInfo.IsDate() || propertyInfo.IsDateTime())
+                    {
+                        column.DisplayFormat = propertyInfo.GetDateEditInputFormatOrNull();
+                    }
+
+                    if (propertyInfo.Type.IsEnum)
+                    {
+                        column.ValueConverter = (val) =>
+                            AbpEnumLocalizer.GetString(propertyInfo.Type, val.As<ExtensibleObject>().ExtraProperties[propertyInfo.Name]!, new IStringLocalizer?[]{ StringLocalizerFactory.CreateDefaultOrNull() });
+                    }
+
+                    tableColumns.Add(column);
+                }
+            }
         }
 
-        protected virtual ValueTask SetBreadcrumbItemsAsync()
-        {
-            return ValueTask.CompletedTask;
-        }
+        return tableColumns;
     }
 }

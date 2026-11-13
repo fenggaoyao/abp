@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Text.RegularExpressions;
+using System.Web;
 using Volo.Docs.Utils;
 
 namespace Volo.Docs.HtmlConverting
@@ -25,7 +27,7 @@ namespace Volo.Docs.HtmlConverting
                                          (localDirectory.IsNullOrEmpty() ? "" : localDirectory.TrimStart('/').EnsureEndsWith('/')) +
                                          match.Groups[2].Value.TrimStart('/');
 
-                    return match.Groups[1] + " src=\"" + newImageSource + "\" " + match.Groups[3];
+                    return match.Groups[1] + " src=\"" + HttpUtility.HtmlEncode(newImageSource) + "\" " + match.Groups[3];
 
                 }, RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Multiline);
 
@@ -34,7 +36,12 @@ namespace Volo.Docs.HtmlConverting
 
         public static string ReplaceCodeBlocksLanguage(string content, string currentLanguage, string newLanguage)
         {
-            return Regex.Replace(content, "<code class=\"" + currentLanguage + "\">", "<code class=\"" + newLanguage + "\">", RegexOptions.IgnoreCase);
+            var sb = new StringBuilder();
+            var pattern = sb.Append("<code class=\"").Append(currentLanguage).Append("\">").ToString();
+            sb.Clear();
+            var replacement = sb.Append("<code class=\"").Append(newLanguage).Append("\">").ToString();
+
+            return Regex.Replace(content, pattern, replacement, RegexOptions.IgnoreCase);
         }
 
         /// <summary>

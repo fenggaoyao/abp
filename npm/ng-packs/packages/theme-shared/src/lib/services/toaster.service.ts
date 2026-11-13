@@ -1,12 +1,10 @@
+import { ComponentRef, inject, Injectable } from '@angular/core';
 import {
   ContentProjectionService,
   LocalizationParam,
   PROJECTION_STRATEGY,
   Strict,
 } from '@abp/ng.core';
-import { ComponentRef, Injectable } from '@angular/core';
-import { ReplaySubject } from 'rxjs';
-import snq from 'snq';
 import { ToastContainerComponent } from '../components/toast-container/toast-container.component';
 import { Toaster } from '../models';
 
@@ -14,21 +12,32 @@ import { Toaster } from '../models';
   providedIn: 'root',
 })
 export class ToasterService implements ToasterContract {
-  private toasts$ = new ReplaySubject<Toaster.Toast[]>(1);
+  private readonly contentProjectionService = inject(ContentProjectionService);
 
   private lastId = -1;
 
   private toasts = [] as Toaster.Toast[];
 
-  private containerComponentRef: ComponentRef<ToastContainerComponent>;
-
-  constructor(private contentProjectionService: ContentProjectionService) {}
+  private containerComponentRef!: ComponentRef<ToastContainerComponent>;
 
   private setContainer() {
     this.containerComponentRef = this.contentProjectionService.projectContent(
-      PROJECTION_STRATEGY.AppendComponentToBody(ToastContainerComponent, { toasts$: this.toasts$ }),
+      PROJECTION_STRATEGY.AppendComponentToBody(ToastContainerComponent, {
+        remove: this.remove,
+      }),
     );
 
+    this.syncContainer();
+  }
+
+  private syncContainer() {
+    if (!this.containerComponentRef) {
+      return;
+    }
+
+    this.containerComponentRef.instance.setToasts(this.toasts);
+    // Only refresh the projected toast host. Calling ApplicationRef.tick() here
+    // races with zone-driven CD and throws NG0101 (recursive tick).
     this.containerComponentRef.changeDetectorRef.detectChanges();
   }
 
@@ -95,23 +104,27 @@ export class ToasterService implements ToasterContract {
    * @param severity Sets color of the toast. "success", "warning" etc.
    * @param options Spesific style or structural options for individual toast
    */
-
   show(
     message: LocalizationParam,
-    title: LocalizationParam = null,
+    title: LocalizationParam | undefined = undefined,
     severity: Toaster.Severity = 'neutral',
     options = {} as Partial<Toaster.ToastOptions>,
   ): Toaster.ToasterId {
-    if (!this.containerComponentRef) this.setContainer();
+    if (!this.containerComponentRef) {
+      this.setContainer();
+    }
 
     const id = ++this.lastId;
-    this.toasts.push({
-      message,
-      title,
-      severity,
-      options: { closable: true, id, ...options },
-    });
-    this.toasts$.next(this.toasts);
+    this.toasts = [
+      ...this.toasts,
+      {
+        message,
+        title,
+        severity,
+        options: { closable: true, id, ...options },
+      },
+    ];
+    this.syncContainer();
     return id;
   }
 
@@ -119,10 +132,10 @@ export class ToasterService implements ToasterContract {
    * Removes the toast with given id.
    * @param id ID of the toast to be removed.
    */
-  remove(id: number): void {
-    this.toasts = this.toasts.filter(toast => snq(() => toast.options.id) !== id);
-    this.toasts$.next(this.toasts);
-  }
+  remove = (id: number) => {
+    this.toasts = this.toasts.filter(toast => toast.options?.id !== id);
+    this.syncContainer();
+  };
 
   /**
    * Removes all open toasts at once.
@@ -130,8 +143,8 @@ export class ToasterService implements ToasterContract {
   clear(containerKey?: string): void {
     this.toasts = !containerKey
       ? []
-      : this.toasts.filter(toast => snq(() => toast.options.containerKey) !== containerKey);
-    this.toasts$.next(this.toasts);
+      : this.toasts.filter(toast => toast.options?.containerKey !== containerKey);
+    this.syncContainer();
   }
 }
 

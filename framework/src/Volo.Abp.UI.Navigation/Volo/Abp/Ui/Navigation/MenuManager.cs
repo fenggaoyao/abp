@@ -6,27 +6,84 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Volo.Abp.Authorization.Permissions;
 using Volo.Abp.DependencyInjection;
+using Volo.Abp.Features;
+using Volo.Abp.SimpleStateChecking;
 
-namespace Volo.Abp.UI.Navigation
+namespace Volo.Abp.UI.Navigation;
+
+public class MenuManager : IMenuManager, ITransientDependency
 {
-    public class MenuManager : IMenuManager, ITransientDependency
+    protected AbpNavigationOptions Options { get; }
+    protected IServiceScopeFactory ServiceScopeFactory { get; }
+    protected ISimpleStateCheckerManager<ApplicationMenuItem> SimpleStateCheckerManager { get; }
+    public MenuManager(
+        IOptions<AbpNavigationOptions> options,
+        IServiceScopeFactory serviceScopeFactory,
+        ISimpleStateCheckerManager<ApplicationMenuItem> simpleStateCheckerManager)
     {
-        protected AbpNavigationOptions Options { get; }
-        protected IHybridServiceScopeFactory ServiceScopeFactory { get; }
+        Options = options.Value;
+        ServiceScopeFactory = serviceScopeFactory;
+        SimpleStateCheckerManager = simpleStateCheckerManager;
+    }
 
-        public MenuManager(
-            IOptions<AbpNavigationOptions> options,
-            IHybridServiceScopeFactory serviceScopeFactory)
+    public Task<ApplicationMenu> GetAsync(string name)
+    {
+        return GetInternalAsync(name);
+    }
+
+    public Task<ApplicationMenu> GetMainMenuAsync()
+    {
+        return GetAsync(Options.MainMenuNames.ToArray());
+    }
+
+    protected virtual async Task<ApplicationMenu> GetAsync(params string[] menuNames)
+    {
+        if (menuNames.IsNullOrEmpty())
         {
-            ServiceScopeFactory = serviceScopeFactory;
-            Options = options.Value;
+            return new ApplicationMenu(StandardMenus.Main);
         }
 
-        public async Task<ApplicationMenu> GetAsync(string name)
-        {
-            var menu = new ApplicationMenu(name);
+        var menus = new List<ApplicationMenu>();
 
-            using (var scope = ServiceScopeFactory.CreateScope())
+        foreach (var menuName in Options.MainMenuNames)
+        {
+            menus.Add(await GetInternalAsync(menuName));
+        }
+
+        return MergeMenus(menus);
+    }
+
+    protected virtual ApplicationMenu MergeMenus(List<ApplicationMenu> menus)
+    {
+        Check.NotNullOrEmpty(menus, nameof(menus));
+
+        if (menus.Count == 1)
+        {
+            return menus[0];
+        }
+
+        var firstMenu = menus[0];
+
+        for (int i = 1; i < menus.Count; i++)
+        {
+            var currentMenu = menus[i];
+            foreach (var menuItem in currentMenu.Items)
+            {
+                firstMenu.AddItem(menuItem);
+            }
+        }
+
+        return firstMenu;
+    }
+
+    protected virtual async Task<ApplicationMenu> GetInternalAsync(string name)
+    {
+        var menu = new ApplicationMenu(name);
+
+        using (var scope = ServiceScopeFactory.CreateScope())
+        {
+            using (RequirePermissionsSimpleBatchStateChecker<ApplicationMenuItem>.Use(new RequirePermissionsSimpleBatchStateChecker<ApplicationMenuItem>()))
+            using (RequireFeaturesSimpleBatchStateChecker<ApplicationMenuItem>.Use(new RequireFeaturesSimpleBatchStateChecker<ApplicationMenuItem>()))
             {
                 var context = new MenuConfigurationContext(menu, scope.ServiceProvider);
 
@@ -38,65 +95,95 @@ namespace Volo.Abp.UI.Navigation
                 await CheckPermissionsAsync(scope.ServiceProvider, menu);
             }
 
-            NormalizeMenu(menu);
-
-            return menu;
+            var urlProviderContext = new MenuItemUrlProviderContext(menu);
+            foreach (var urlProvider in scope.ServiceProvider.GetServices<IMenuItemUrlProvider>())
+            {
+                await urlProvider.HandleAsync(urlProviderContext);
+            }
         }
 
-        protected virtual async Task CheckPermissionsAsync(IServiceProvider serviceProvider, IHasMenuItems menuWithItems)
+        NormalizeMenu(menu);
+        NormalizeMenuGroup(menu);
+
+        return menu;
+    }
+
+    protected virtual async Task CheckPermissionsAsync(IServiceProvider serviceProvider, IHasMenuItems menuWithItems)
+    {
+        var allMenuItems = new List<ApplicationMenuItem>();
+        GetAllMenuItems(menuWithItems, allMenuItems);
+
+        foreach (var item in allMenuItems)
         {
-            var requiredPermissionItems = new List<ApplicationMenuItem>();
-            GetRequiredPermissionNameMenus(menuWithItems, requiredPermissionItems);
-
-            if (requiredPermissionItems.Any())
+            if (!item.RequiredPermissionName.IsNullOrWhiteSpace())
             {
-                var permissionChecker = serviceProvider.GetRequiredService<IPermissionChecker>();
-                var grantResult = await permissionChecker.IsGrantedAsync(requiredPermissionItems.Select(x => x.RequiredPermissionName).Distinct().ToArray());
+                item.RequirePermissions(item.RequiredPermissionName!);
+            }
+        }
 
-                var toBeDeleted = new HashSet<ApplicationMenuItem>();
-                foreach (var menu in requiredPermissionItems)
+        var checkPermissionsMenuItems = allMenuItems.Where(x => x.StateCheckers.Any()).ToArray();
+
+        if (checkPermissionsMenuItems.Any())
+        {
+            var toBeDeleted = new HashSet<ApplicationMenuItem>();
+            var result = await SimpleStateCheckerManager.IsEnabledAsync(checkPermissionsMenuItems);
+            foreach (var menu in checkPermissionsMenuItems)
+            {
+                if (!result[menu])
                 {
-                    if (grantResult.Result[menu.RequiredPermissionName!] != PermissionGrantResult.Granted)
-                    {
-                        toBeDeleted.Add(menu);
-                    }
+                    toBeDeleted.Add(menu);
                 }
-
-                RemoveMenus(menuWithItems, toBeDeleted);
             }
-        }
 
-        protected virtual void GetRequiredPermissionNameMenus(IHasMenuItems menuWithItems, List<ApplicationMenuItem> output)
+            RemoveMenus(menuWithItems, toBeDeleted);
+        }
+    }
+
+    protected virtual void GetAllMenuItems(IHasMenuItems menuWithItems, List<ApplicationMenuItem> output)
+    {
+        foreach (var item in menuWithItems.Items)
         {
-            foreach (var item in menuWithItems.Items)
-            {
-                if (!item.RequiredPermissionName.IsNullOrWhiteSpace())
-                {
-                    output.Add(item);
-                }
-
-                GetRequiredPermissionNameMenus(item, output);
-            }
+            output.Add(item);
+            GetAllMenuItems(item, output);
         }
+    }
 
-        protected virtual void RemoveMenus(IHasMenuItems menuWithItems, HashSet<ApplicationMenuItem> toBeDeleted)
+    protected virtual void RemoveMenus(IHasMenuItems menuWithItems, HashSet<ApplicationMenuItem> toBeDeleted)
+    {
+        menuWithItems.Items.RemoveAll(toBeDeleted.Contains);
+
+        foreach (var item in menuWithItems.Items)
         {
-            menuWithItems.Items.RemoveAll(toBeDeleted.Contains);
-
-            foreach (var item in menuWithItems.Items)
-            {
-                RemoveMenus(item, toBeDeleted);
-            }
+            RemoveMenus(item, toBeDeleted);
         }
+    }
 
-        protected virtual void NormalizeMenu(IHasMenuItems menuWithItems)
+    protected virtual void NormalizeMenu(IHasMenuItems menuWithItems)
+    {
+        foreach (var item in menuWithItems.Items)
         {
-            foreach (var item in menuWithItems.Items)
+            NormalizeMenu(item);
+        }
+
+        menuWithItems.Items.Normalize();
+    }
+
+    protected virtual void NormalizeMenuGroup(ApplicationMenu applicationMenu)
+    {
+        foreach (var menuGroup in applicationMenu.Items.Where(x => !x.GroupName.IsNullOrWhiteSpace()).GroupBy(x => x.GroupName))
+        {
+            var group = applicationMenu.GetMenuGroupOrNull(menuGroup.First().GroupName!);
+            if (group != null)
             {
-                NormalizeMenu(item);
+                continue;
             }
 
-            menuWithItems.Items.Normalize();
+            foreach (var menuItem in menuGroup)
+            {
+                menuItem.GroupName = null;
+            }
         }
+
+        applicationMenu.Groups.Normalize();
     }
 }

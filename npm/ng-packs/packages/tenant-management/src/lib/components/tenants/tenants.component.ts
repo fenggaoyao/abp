@@ -1,35 +1,53 @@
-import { ListService, PagedResultDto } from '@abp/ng.core';
-import { eFeatureManagementComponents } from '@abp/ng.feature-management';
-import { Confirmation, ConfirmationService, getPasswordValidators } from '@abp/ng.theme.shared';
-import { Component, Injector, OnInit, TemplateRef, ViewChild } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { Select, Store } from '@ngxs/store';
-import { Observable } from 'rxjs';
-import { finalize, pluck, switchMap, take } from 'rxjs/operators';
 import {
-  CreateTenant,
-  DeleteTenant,
-  GetTenantById,
-  GetTenants,
-  UpdateTenant,
-} from '../../actions/tenant-management.actions';
-import { GetTenantsInput, TenantDto } from '../../proxy/models';
-import { TenantService } from '../../proxy/tenant.service';
-import { TenantManagementState } from '../../states/tenant-management.state';
+  ChangeDetectionStrategy,
+  Component,
+  DOCUMENT,
+  inject,
+  Injector,
+  makeStateKey,
+  signal,
+} from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import {
+  FormsModule,
+  ReactiveFormsModule,
+  UntypedFormBuilder,
+  UntypedFormGroup,
+} from '@angular/forms';
+import { finalize } from 'rxjs/operators';
+import { NgxValidateCoreModule } from '@ngx-validate/core';
+
+import {
+  ListService,
+  LocalizationPipe,
+  PagedResultDto,
+  ReplaceableTemplateDirective,
+} from '@abp/ng.core';
+import {
+  eFeatureManagementComponents,
+  FeatureManagementComponent,
+} from '@abp/ng.feature-management';
+import { GetTenantsInput, TenantDto, TenantService } from '@abp/ng.tenant-management/proxy';
+import {
+  ButtonComponent,
+  Confirmation,
+  ConfirmationService,
+  ModalCloseDirective,
+  ModalComponent,
+  ToasterService,
+} from '@abp/ng.theme.shared';
+import {
+  ExtensibleFormComponent,
+  ExtensibleTableComponent,
   EXTENSIONS_IDENTIFIER,
   FormPropData,
   generateFormFromProps,
-} from '@abp/ng.theme.shared/extensions';
+} from '@abp/ng.components/extensible';
+import { PageComponent } from '@abp/ng.components/page';
 import { eTenantManagementComponents } from '../../enums/components';
 
-interface SelectedModalContent {
-  type: 'saveConnStr' | 'saveTenant';
-  title: string;
-  template: TemplateRef<any>;
-}
-
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'abp-tenants',
   templateUrl: './tenants.component.html',
   providers: [
@@ -39,174 +57,91 @@ interface SelectedModalContent {
       useValue: eTenantManagementComponents.Tenants,
     },
   ],
+  imports: [
+    FormsModule,
+    ReactiveFormsModule,
+    PageComponent,
+    LocalizationPipe,
+    ExtensibleTableComponent,
+    ModalComponent,
+    FeatureManagementComponent,
+    ButtonComponent,
+    ReplaceableTemplateDirective,
+    ExtensibleFormComponent,
+    ModalCloseDirective,
+    NgxValidateCoreModule,
+  ],
 })
-export class TenantsComponent implements OnInit {
-  @Select(TenantManagementState.get)
-  data$: Observable<PagedResultDto<TenantDto>>;
+export class TenantsComponent {
+  protected readonly list = inject(ListService<GetTenantsInput>);
+  protected readonly confirmationService = inject(ConfirmationService);
+  protected readonly service = inject(TenantService);
+  protected readonly toasterService = inject(ToasterService);
+  private readonly fb = inject(UntypedFormBuilder);
+  private readonly injector = inject(Injector);
+  private document = inject(DOCUMENT);
 
-  @Select(TenantManagementState.getTenantsTotalCount)
-  totalCount$: Observable<number>;
+  readonly data = toSignal(
+    this.list.hookToQuery(query => this.service.getList(query)),
+    {
+      initialValue: { items: [], totalCount: 0 } as PagedResultDto<TenantDto>,
+    },
+  );
 
-  selected: TenantDto;
+  selected!: TenantDto;
 
-  tenantForm: FormGroup;
+  tenantForm!: UntypedFormGroup;
 
-  defaultConnectionStringForm: FormGroup;
+  readonly isModalVisible = signal(false);
+  readonly visibleFeatures = signal(false);
+  readonly modalBusy = signal(false);
 
-  defaultConnectionString: string;
-
-  isModalVisible: boolean;
-
-  selectedModalContent = {} as SelectedModalContent;
-
-  visibleFeatures = false;
-
-  providerKey: string;
-
-  _useSharedDatabase: boolean;
-
-  modalBusy = false;
+  providerKey!: string;
 
   featureManagementKey = eFeatureManagementComponents.FeatureManagement;
+  TENANTS_KEY = makeStateKey<PagedResultDto<TenantDto>>('tenants');
 
   get hasSelectedTenant(): boolean {
     return Boolean(this.selected.id);
   }
 
-  get useSharedDatabase(): boolean {
-    return this.defaultConnectionStringForm.get('useSharedDatabase').value;
-  }
-
-  get connectionString(): string {
-    return this.defaultConnectionStringForm.get('defaultConnectionString').value;
-  }
-
-  @ViewChild('tenantModalTemplate')
-  tenantModalTemplate: TemplateRef<any>;
-
-  get isDisabledSaveButton(): boolean {
-    if (!this.selectedModalContent) return false;
-
-    if (
-      this.selectedModalContent.type === 'saveConnStr' &&
-      this.defaultConnectionStringForm &&
-      this.defaultConnectionStringForm.invalid
-    ) {
-      return true;
-    } else if (
-      this.selectedModalContent.type === 'saveTenant' &&
-      this.tenantForm &&
-      this.tenantForm.invalid
-    ) {
-      return true;
-    } else {
-      return false;
-    }
-  }
-
   onVisibleFeaturesChange = (value: boolean) => {
-    this.visibleFeatures = value;
+    this.visibleFeatures.set(value);
   };
-
-  constructor(
-    public readonly list: ListService<GetTenantsInput>,
-    private injector: Injector,
-    private confirmationService: ConfirmationService,
-    private tenantService: TenantService,
-    private fb: FormBuilder,
-    private store: Store,
-  ) {}
-
-  ngOnInit() {
-    this.hookToQuery();
-  }
 
   private createTenantForm() {
     const data = new FormPropData(this.injector, this.selected);
     this.tenantForm = generateFormFromProps(data);
   }
 
-  private createDefaultConnectionStringForm() {
-    this.defaultConnectionStringForm = this.fb.group({
-      useSharedDatabase: this._useSharedDatabase,
-      defaultConnectionString: [this.defaultConnectionString || ''],
-    });
-  }
-
-  openModal(title: string, template: TemplateRef<any>, type: 'saveConnStr' | 'saveTenant') {
-    this.selectedModalContent = {
-      title,
-      template,
-      type,
-    };
-
-    this.isModalVisible = true;
-  }
-
   addTenant() {
     this.selected = {} as TenantDto;
     this.createTenantForm();
-    this.openModal('AbpTenantManagement::NewTenant', this.tenantModalTemplate, 'saveTenant');
+    this.isModalVisible.set(true);
   }
 
   editTenant(id: string) {
-    this.store
-      .dispatch(new GetTenantById(id))
-      .pipe(pluck('TenantManagementState', 'selectedItem'))
-      .subscribe(selected => {
-        this.selected = selected;
-        this.createTenantForm();
-        this.openModal('AbpTenantManagement::Edit', this.tenantModalTemplate, 'saveTenant');
-      });
+    this.service.get(id).subscribe(res => {
+      this.selected = res;
+      this.createTenantForm();
+      this.isModalVisible.set(true);
+    });
   }
 
   save() {
-    const { type } = this.selectedModalContent;
-    if (!type) return;
-    if (type === 'saveTenant') this.saveTenant();
-    else if (type === 'saveConnStr') this.saveConnectionString();
-  }
+    if (!this.tenantForm.valid || this.modalBusy()) return;
+    this.modalBusy.set(true);
 
-  saveConnectionString() {
-    if (this.modalBusy) return;
+    const { id } = this.selected;
 
-    this.modalBusy = true;
-    if (this.useSharedDatabase || (!this.useSharedDatabase && !this.connectionString)) {
-      this.tenantService
-        .deleteDefaultConnectionString(this.selected.id)
-        .pipe(
-          take(1),
-          finalize(() => (this.modalBusy = false)),
-        )
-        .subscribe(() => {
-          this.isModalVisible = false;
-        });
-    } else {
-      this.tenantService
-        .updateDefaultConnectionString(this.selected.id, this.connectionString)
-        .pipe(
-          take(1),
-          finalize(() => (this.modalBusy = false)),
-        )
-        .subscribe(() => {
-          this.isModalVisible = false;
-        });
-    }
-  }
-
-  saveTenant() {
-    if (!this.tenantForm.valid || this.modalBusy) return;
-    this.modalBusy = true;
-
-    this.store
-      .dispatch(
-        this.selected.id
-          ? new UpdateTenant({ ...this.selected, ...this.tenantForm.value, id: this.selected.id })
-          : new CreateTenant(this.tenantForm.value),
-      )
-      .pipe(finalize(() => (this.modalBusy = false)))
+    (id
+      ? this.service.update(id, { ...this.selected, ...this.tenantForm.value })
+      : this.service.create(this.tenantForm.value)
+    )
+      .pipe(finalize(() => this.modalBusy.set(false)))
       .subscribe(() => {
-        this.isModalVisible = false;
+        this.isModalVisible.set(false);
+        this.toasterService.success('AbpUi::SavedSuccessfully');
         this.list.get();
       });
   }
@@ -222,19 +157,16 @@ export class TenantsComponent implements OnInit {
       )
       .subscribe((status: Confirmation.Status) => {
         if (status === Confirmation.Status.confirm) {
-          this.store.dispatch(new DeleteTenant(id)).subscribe(() => this.list.get());
+          this.toasterService.success('AbpUi::DeletedSuccessfully');
+          this.service.delete(id).subscribe(() => this.list.get());
         }
       });
-  }
-
-  hookToQuery() {
-    this.list.hookToQuery(query => this.store.dispatch(new GetTenants(query))).subscribe();
   }
 
   onSharedDatabaseChange(value: boolean) {
     if (!value) {
       setTimeout(() => {
-        const defaultConnectionString = document.getElementById(
+        const defaultConnectionString = this.document.getElementById(
           'defaultConnectionString',
         ) as HTMLInputElement;
         if (defaultConnectionString) {
@@ -247,12 +179,17 @@ export class TenantsComponent implements OnInit {
   openFeaturesModal(providerKey: string) {
     this.providerKey = providerKey;
     setTimeout(() => {
-      this.visibleFeatures = true;
+      this.visibleFeatures.set(true);
     }, 0);
   }
 
-  sort(data) {
-    const { prop, dir } = data.sorts[0];
+  sort(data: { sorts?: { prop: string; dir: string }[] } | { prop: string; dir: string }[]) {
+    const sorts = Array.isArray(data) ? data : data?.sorts;
+    if (!sorts?.length) {
+      return;
+    }
+
+    const { prop, dir } = sorts[0];
     this.list.sortKey = prop;
     this.list.sortOrder = dir;
   }

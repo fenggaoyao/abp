@@ -1,20 +1,14 @@
-import { CoreModule, LazyModuleFactory } from '@abp/ng.core';
-import { ThemeSharedModule } from '@abp/ng.theme.shared';
+import { LazyModuleFactory } from '@abp/ng.core';
 import { ModuleWithProviders, NgModule, NgModuleFactory } from '@angular/core';
-import { NgxsModule } from '@ngxs/store';
-import { SettingManagementComponent } from './components/setting-management.component';
 import { SettingManagementRoutingModule } from './setting-management-routing.module';
-import { SettingManagementState } from './states/setting-management.state';
+import { SettingManagementComponent } from './components/setting-management.component';
+
+export const SETTING_MANAGEMENT_MODULE_EXPORTS = [SettingManagementComponent];
 
 @NgModule({
-  declarations: [SettingManagementComponent],
-  exports: [SettingManagementComponent],
-  imports: [
-    SettingManagementRoutingModule,
-    CoreModule,
-    ThemeSharedModule,
-    NgxsModule.forFeature([SettingManagementState]),
-  ],
+  declarations: [],
+  exports: [],
+  imports: [SettingManagementRoutingModule, ...SETTING_MANAGEMENT_MODULE_EXPORTS],
 })
 export class SettingManagementModule {
   static forChild(): ModuleWithProviders<SettingManagementModule> {
@@ -23,7 +17,9 @@ export class SettingManagementModule {
       providers: [],
     };
   }
-
+  /**
+   * @deprecated `SettingManagementModule.forLazy()` is deprecated. You can use `createRoutes` **function** instead.
+   */
   static forLazy(): NgModuleFactory<SettingManagementModule> {
     return new LazyModuleFactory(SettingManagementModule.forChild());
   }

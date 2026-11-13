@@ -1,11 +1,11 @@
-﻿(function ($) {
+(function ($) {
     var l = abp.localization.getResource('Blogging');
 
     var initSocialShareLinks = function () {
         var re = new RegExp(/^.*\//);
         var rootUrl = re.exec(window.location.href);
 
-        var pageHeader = $('#PostTitle').text();
+        var pageHeader = $('#PostTitle').text().trim();
         var blogName = $('#BlogFullName').attr('name');
 
         $('#TwitterShareLink').attr(
@@ -14,6 +14,12 @@
                 encodeURI(
                     pageHeader + ' | ' + blogName + ' | ' + window.location.href
                 )
+        );
+        
+        $('#FacebookShareLink').attr(
+            'href',
+            'https://www.facebook.com/sharer/sharer.php?u=' +
+                encodeURI(window.location.href)
         );
 
         $('#LinkedinShareLink').attr(
@@ -44,7 +50,16 @@
                 '&'
         );
     };
-
+    
+    $('#CopyLink').click(function (event) {
+        event.preventDefault();
+        var $temp = $('<input>');
+        $('body').append($temp);
+        $temp.val(window.location.href).select();
+        document.execCommand('copy');
+        $temp.remove();
+    });
+    
     $('div .replyForm').hide();
 
     $('div .editForm').hide();
@@ -60,11 +75,14 @@
                 id: form.commentId,
                 commentDto: {
                     text: form.text,
+                    // TODO: Implement concurrencyStamp here:
+                    //concurrencyStamp: form.concurrencyStamp
                 },
             },
             success: function (response) {
                 $('div .editForm').hide();
                 $('#' + form.commentId).text(form.text);
+                //$(this).find('[name=concurrencyStamp]').val(response.concurrencyStamp);
             },
         });
     });

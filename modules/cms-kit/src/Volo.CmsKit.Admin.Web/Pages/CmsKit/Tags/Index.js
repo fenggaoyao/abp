@@ -1,4 +1,4 @@
-﻿$(function () {
+$(function () {
     var l = abp.localization.getResource("CmsKit");
 
     var createModal = new abp.ModalManager(abp.appPath + "CmsKit/Tags/CreateModal");
@@ -17,7 +17,6 @@
         serverSide: true,
         paging: true,
         searching: false,
-        autoWidth: false,
         scrollCollapse: true,
         scrollX: true,
         ordering: false,
@@ -44,7 +43,6 @@
                                 service
                                     .delete(data.record.id)
                                     .then(function () {
-                                        abp.notify.info(l("SuccessfullyDeleted"));
                                         dataTable.ajax.reload(null, false);
                                     });
                             }
@@ -65,7 +63,7 @@
 
     $('#CmsKitTagsWrapper form.page-search-form').on('submit', function (e) {
         e.preventDefault();
-        dataTable.ajax.reload();
+        dataTable.ajax.reloadEx();
     });
 
     $('#AbpContentToolbar button[name=NewButton]').on('click', function (e) {
@@ -74,10 +72,10 @@
     });
 
     createModal.onResult(function () {
-        dataTable.ajax.reload();
+        dataTable.ajax.reloadEx();
     });
 
     updateModal.onResult(function () {
-        dataTable.ajax.reload();
+        dataTable.ajax.reloadEx();
     });
 });

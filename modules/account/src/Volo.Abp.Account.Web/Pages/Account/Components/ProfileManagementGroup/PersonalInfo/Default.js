@@ -1,4 +1,4 @@
-﻿﻿(function ($) {
+(function ($) {
     $(function () {
         var l = abp.localization.getResource("AbpAccount");
 
@@ -9,11 +9,20 @@
                 return false;
             }
 
-            var input = $('#PersonalSettingsForm').serializeFormToObject();
+            var input = $('#PersonalSettingsForm').serializeFormToObject(false);
 
-            volo.abp.identity.profile.update(input).then(function (result) {
+            volo.abp.account.profile.update(input).then(function (result) {
                 abp.notify.success(l('PersonalSettingsSaved'));
+                updateConcurrencyStamp();
             });
         });
     });
+
+    abp.event.on('passwordChanged', updateConcurrencyStamp);
+    
+    function updateConcurrencyStamp(){
+        volo.abp.account.profile.get().then(function(profile){
+            $("#ConcurrencyStamp").val(profile.concurrencyStamp);
+        });
+    }
 })(jQuery);

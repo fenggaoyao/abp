@@ -7,6 +7,8 @@ import {
   StaticProvider,
   Type,
 } from '@angular/core';
+import { filter, map } from 'rxjs/operators';
+import { ConfigStateService } from '../services/config-state.service';
 
 export class LazyModuleFactory<T> extends NgModuleFactory<T> {
   get moduleType(): Type<T> {
@@ -19,7 +21,7 @@ export class LazyModuleFactory<T> extends NgModuleFactory<T> {
 
   create(parentInjector: Injector | null): NgModuleRef<T> {
     const injector = Injector.create({
-      parent: parentInjector,
+      ...(parentInjector && { parent: parentInjector }),
       providers: this.moduleWithProviders.providers as StaticProvider[],
     });
 
@@ -28,4 +30,12 @@ export class LazyModuleFactory<T> extends NgModuleFactory<T> {
 
     return factory.create(injector);
   }
+}
+
+export function featuresFactory(
+  configState: ConfigStateService,
+  featureKeys: string[],
+  mapFn: (features: { [key: string]: string }) => any = features => features,
+) {
+  return configState.getFeatures$(featureKeys).pipe(filter(Boolean), map(mapFn));
 }

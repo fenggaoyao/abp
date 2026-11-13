@@ -1,4 +1,3 @@
-import { ApplicationConfiguration } from '../models/application-configuration';
 import { DateTimeFormatDto } from '../proxy/volo/abp/asp-net-core/mvc/application-configurations/models';
 import { ConfigStateService } from '../services';
 
@@ -14,8 +13,7 @@ export function getShortTimeFormat(configStateService: ConfigStateService) {
   const dateTimeFormat = configStateService.getDeep(
     'localization.currentCulture.dateTimeFormat',
   ) as DateTimeFormatDto;
-
-  return dateTimeFormat.shortTimePattern.replace('tt', 'a');
+  return dateTimeFormat?.shortTimePattern?.replace('tt', 'a');
 }
 
 export function getShortDateShortTimeFormat(configStateService: ConfigStateService) {
@@ -23,5 +21,5 @@ export function getShortDateShortTimeFormat(configStateService: ConfigStateServi
     'localization.currentCulture.dateTimeFormat',
   ) as DateTimeFormatDto;
 
-  return `${dateTimeFormat.shortDatePattern} ${dateTimeFormat.shortTimePattern.replace('tt', 'a')}`;
+  return `${dateTimeFormat.shortDatePattern} ${dateTimeFormat?.shortTimePattern?.replace('tt', 'a')}`;
 }

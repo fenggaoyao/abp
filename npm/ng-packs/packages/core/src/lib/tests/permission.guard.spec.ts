@@ -1,109 +1,124 @@
-import { APP_BASE_HREF } from '@angular/common';
 import { Component } from '@angular/core';
-import { RouterModule } from '@angular/router';
-import { createServiceFactory, SpectatorService, SpyObject } from '@ngneat/spectator/jest';
-import { Actions, Store } from '@ngxs/store';
+import { provideRouter, Route, Router } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
+import { TestBed } from '@angular/core/testing';
+import { createSpyObject, SpyObject } from '@ngneat/spectator/vitest';
 import { of } from 'rxjs';
-import { RestOccurError } from '../actions';
-import { PermissionGuard } from '../guards/permission.guard';
-import { RoutesService } from '../services/routes.service';
-import { PermissionService } from '../services';
+import { permissionGuard } from '../guards/permission.guard';
+import { HttpErrorReporterService } from '../services/http-error-reporter.service';
+import { PermissionService } from '../services/permission.service';
+import { AuthService } from '../abstracts';
+import { ConfigStateService, RouteBasedCultureUrlService, RoutesService } from '../services';
 
-describe('PermissionGuard', () => {
-  let spectator: SpectatorService<PermissionGuard>;
-  let guard: PermissionGuard;
-  let routes: SpyObject<RoutesService>;
-  let store: SpyObject<Store>;
+@Component({ template: '' })
+class DummyComponent {}
+
+// Removed deprecated class-based PermissionGuard tests; function-based guard is covered below.
+
+describe('authGuard', () => {
   let permissionService: SpyObject<PermissionService>;
+  let httpErrorReporter: SpyObject<HttpErrorReporterService>;
+  let routesService: Pick<RoutesService, 'find'>;
+  let routeCultureUrl: Pick<RouteBasedCultureUrlService, 'getRoutePathForMatching'>;
+  let configStateService: Pick<ConfigStateService, 'getAll$'>;
 
-  @Component({ template: '' })
-  class DummyComponent {}
+  const authService = {
+    isAuthenticated: true,
+  };
 
-  const createService = createServiceFactory({
-    service: PermissionGuard,
-    mocks: [PermissionService, Store],
-    declarations: [DummyComponent],
-    imports: [
-      RouterModule.forRoot([
+  const routes: Route[] = [
     {
-        path: 'test',
-        component: DummyComponent,
-        data: {
-            requiredPolicy: 'TestPolicy',
-        },
-    },
-], { relativeLinkResolution: 'legacy' }),
-    ],
-    providers: [
-      {
-        provide: APP_BASE_HREF,
-        useValue: '/',
-      },
-      {
-        provide: Actions,
-        useValue: {
-          pipe() {
-            return of(null);
-          },
-        },
-      },
-    ],
-  });
-
-  beforeEach(() => {
-    spectator = createService();
-    guard = spectator.service;
-    routes = spectator.inject(RoutesService);
-    store = spectator.inject(Store);
-    permissionService = spectator.inject(PermissionService);
-  });
-
-  it('should return true when the grantedPolicy is true', done => {
-    permissionService.getGrantedPolicy$.andReturn(of(true));
-    const spy = jest.spyOn(store, 'dispatch');
-    guard.canActivate({ data: { requiredPolicy: 'test' } } as any, null).subscribe(res => {
-      expect(res).toBe(true);
-      expect(spy.mock.calls).toHaveLength(0);
-      done();
-    });
-  });
-
-  it('should return false and dispatch RestOccurError when the grantedPolicy is false', done => {
-    permissionService.getGrantedPolicy$.andReturn(of(false));
-    const spy = jest.spyOn(store, 'dispatch');
-    guard.canActivate({ data: { requiredPolicy: 'test' } } as any, null).subscribe(res => {
-      expect(res).toBe(false);
-      expect(spy.mock.calls[0][0] instanceof RestOccurError).toBeTruthy();
-      expect((spy.mock.calls[0][0] as RestOccurError).payload).toEqual({ status: 403 });
-      done();
-    });
-  });
-
-  it('should check the requiredPolicy from RoutesService', done => {
-    routes.add([
-      {
-        path: '/test',
-        name: 'Test',
+      path: 'dummy',
+      component: DummyComponent,
+      canActivate: [permissionGuard],
+      data: {
         requiredPolicy: 'TestPolicy',
       },
-    ]);
-    permissionService.getGrantedPolicy$.mockImplementation(policy => of(policy === 'TestPolicy'));
-    guard.canActivate({ data: {} } as any, { url: 'test' } as any).subscribe(result => {
-      expect(result).toBe(true);
-      done();
+    },
+    {
+      path: 'zibzib',
+      component: DummyComponent,
+      canActivate: [permissionGuard],
+    },
+    {
+      path: 'redirect-test',
+      component: DummyComponent,
+      canActivate: [permissionGuard],
+      data: {
+        requiredPolicy: 'TestPolicy',
+        redirectUrl: '/zibzib',
+      },
+    },
+  ];
+
+  beforeEach(() => {
+    httpErrorReporter = createSpyObject(HttpErrorReporterService);
+    permissionService = createSpyObject(PermissionService);
+    permissionService.getGrantedPolicy$.andReturn(of(true));
+    routesService = {
+      find: vi.fn(),
+    };
+    routeCultureUrl = {
+      getRoutePathForMatching: vi.fn((_: Router, url: string) => url),
+    };
+    configStateService = {
+      getAll$: vi.fn(() => of({ auth: { grantedPolicies: {} } })),
+    };
+
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: AuthService, useValue: authService },
+        { provide: PermissionService, useValue: permissionService },
+        { provide: HttpErrorReporterService, useValue: httpErrorReporter },
+        { provide: RoutesService, useValue: routesService },
+        { provide: RouteBasedCultureUrlService, useValue: routeCultureUrl },
+        { provide: ConfigStateService, useValue: configStateService },
+        provideRouter(routes),
+      ],
     });
   });
 
-  it('should return Observable<true> if RoutesService does not have requiredPolicy for given URL', done => {
-    routes.add([
-      {
-        path: '/test',
-        name: 'Test',
-      },
-    ]);
-    guard.canActivate({ data: {} } as any, { url: 'test' } as any).subscribe(result => {
-      expect(result).toBe(true);
-      done();
+  it('should return true when the grantedPolicy is true', async () => {
+    permissionService.getGrantedPolicy$.andReturn(of(true));
+    await RouterTestingHarness.create('/dummy');
+
+    expect(TestBed.inject(Router).url).toEqual('/dummy');
+    expect(httpErrorReporter.reportError).not.toHaveBeenCalled();
+  });
+
+  it('should return false and report an error when the grantedPolicy is false', () => {
+    permissionService.getGrantedPolicy$.andReturn(of(false));
+    return RouterTestingHarness.create('/dummy').then(() => {
+      expect(TestBed.inject(Router).url).toEqual('/');
+      expect(httpErrorReporter.reportError).toHaveBeenCalledWith({ status: 403 });
     });
+  });
+
+  it('should check the requiredPolicy from RoutesService', async () => {
+    routesService.find = vi.fn(predicate => {
+      const route = { path: '/zibzib', requiredPolicy: 'TestPolicy' };
+      return predicate(route) ? route : null;
+    });
+    permissionService.getGrantedPolicy$.mockImplementation(policy => {
+      return of(policy === 'TestPolicy');
+    });
+    await RouterTestingHarness.create('/zibzib');
+
+    expect(permissionService.getGrantedPolicy$).toHaveBeenCalledWith('TestPolicy');
+    expect(TestBed.inject(Router).url).toEqual('/zibzib');
+    expect(httpErrorReporter.reportError).not.toHaveBeenCalled();
+  });
+
+  it('should return Observable<true> if RoutesService does not have requiredPolicy for given URL', async () => {
+    await RouterTestingHarness.create('/zibzib');
+    expect(TestBed.inject(Router).url).toEqual('/zibzib');
+  });
+
+  it('should redirect to redirectUrl when the grantedPolicy is false and redirectUrl is provided', async () => {
+    permissionService.getGrantedPolicy$.andReturn(of(false));
+    await RouterTestingHarness.create('/redirect-test');
+
+    expect(TestBed.inject(Router).url).toEqual('/zibzib');
+    expect(httpErrorReporter.reportError).not.toHaveBeenCalled();
   });
 });

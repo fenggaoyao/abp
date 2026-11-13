@@ -3,15 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
-using System.Web;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Options;
+using Volo.Abp.AspNetCore.Mvc.UI.Bootstrap.TagHelpers.Pagination;
+using Volo.Abp.Data;
+using Volo.Docs.Common.Projects;
 using Volo.Docs.Documents;
 using Volo.Docs.GitHub.Documents.Version;
-using Volo.Docs.HtmlConverting;
-using Volo.Docs.Models;
 using Volo.Docs.Projects;
-using Volo.Docs.Utils;
 
 namespace Volo.Docs.Pages.Documents
 {
@@ -25,22 +25,25 @@ namespace Volo.Docs.Pages.Documents
 
         [BindProperty(SupportsGet = true)] public string KeyWord { get; set; }
 
+        [BindProperty(SupportsGet = true)] public int CurrentPage { get; set; } = 1;
+
+        public PagerModel PagerModel { get; set; }
+
         public ProjectDto Project { get; set; }
 
         private readonly IProjectAppService _projectAppService;
         private readonly IDocumentAppService _documentAppService;
         private readonly HtmlEncoder _encoder;
-        private readonly IVersionHelper _versionHelper;
+        private readonly DocsUiOptions _uiOptions;
 
         public SearchModel(IProjectAppService projectAppService,
             IDocumentAppService documentAppService,
-            HtmlEncoder encoder,
-            IVersionHelper versionHelper)
+            HtmlEncoder encoder, IOptions<DocsUiOptions> uiOptions)
         {
             _projectAppService = projectAppService;
             _documentAppService = documentAppService;
             _encoder = encoder;
-            _versionHelper = versionHelper;
+            _uiOptions = uiOptions.Value;
         }
 
         public List<DocumentSearchOutput> SearchOutputs { get; set; } = new List<DocumentSearchOutput>();
@@ -52,9 +55,14 @@ namespace Volo.Docs.Pages.Documents
                 return RedirectToPage("Index");
             }
 
+            if (keyword.IsNullOrWhiteSpace())
+            {
+                return Page();
+            }
+
             KeyWord = keyword;
 
-            Project = await _projectAppService.GetAsync(ProjectName);
+            await SetProjectAsync();
 
             var output = await _projectAppService.GetVersionsAsync(Project.ShortName);
 
@@ -63,25 +71,37 @@ namespace Volo.Docs.Pages.Documents
             if (versions.Any() &&
                 string.Equals(Version, DocsAppConsts.Latest, StringComparison.OrdinalIgnoreCase))
             {
-                if ((!Project.ExtraProperties.ContainsKey("GithubVersionProviderSource") ||
-                     (GithubVersionProviderSource) (long) Project.ExtraProperties["GithubVersionProviderSource"] ==GithubVersionProviderSource.Releases) &&
+                if ((!Project.HasProperty("GithubVersionProviderSource") ||
+                     Project.GetProperty<GithubVersionProviderSource>("GithubVersionProviderSource") ==GithubVersionProviderSource.Releases) &&
                     !string.IsNullOrEmpty(Project.LatestVersionBranchName))
                 {
                     Version = Project.LatestVersionBranchName;
                 }
                 else
                 {
-                    Version = (versions.FirstOrDefault(v => !_versionHelper.IsPreRelease(v.Name)) ?? versions.First()).Name;
+                    Version = (versions.FirstOrDefault(v => !SemanticVersionHelper.IsPreRelease(v.Name)) ?? versions.First()).Name;
                 }
             }
 
-            SearchOutputs = await _documentAppService.SearchAsync(new DocumentSearchInput
+            var pagedSearchOutputs = await _documentAppService.SearchAsync(new DocumentSearchInput
             {
                 ProjectId = Project.Id,
                 Context = KeyWord,
                 LanguageCode = LanguageCode,
-                Version = Version
+                Version = Version,
+                MaxResultCount = 10,
+                SkipCount = (CurrentPage - 1) * 10
             });
+
+            SearchOutputs = pagedSearchOutputs.Items.ToList();
+
+            PagerModel = new PagerModel(pagedSearchOutputs.TotalCount, 10, CurrentPage, 10, Url.Page("Search", new
+            {
+                ProjectName,
+                Version,
+                LanguageCode,
+                KeyWord
+            }));
 
             var highlightTag1 = Guid.NewGuid().ToString();
             var highlightTag2 = Guid.NewGuid().ToString();
@@ -97,6 +117,28 @@ namespace Volo.Docs.Pages.Documents
             }
 
             return Page();
+        }
+
+        private async Task SetProjectAsync()
+        {
+            if (!_uiOptions.SingleProjectMode.Enable)
+            {
+                Project = await _projectAppService.GetAsync(ProjectName);
+                return;
+            }
+
+            var singleProjectName = ProjectName ?? _uiOptions.SingleProjectMode.ProjectName;
+            if (!singleProjectName.IsNullOrWhiteSpace())
+            {
+                Project = await _projectAppService.GetAsync(singleProjectName);
+                return;
+            }
+
+            var listResult = await _projectAppService.GetListAsync();
+            if (listResult.Items.Count == 1)
+            {
+                Project = listResult.Items[0];
+            }
         }
     }
 }

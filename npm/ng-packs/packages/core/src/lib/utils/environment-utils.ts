@@ -1,8 +1,7 @@
 import { HttpClient } from '@angular/common/http';
-import { Injector } from '@angular/core';
-import { Store } from '@ngxs/store';
+import { Injector, isDevMode } from '@angular/core';
+import { of } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
-import { RestOccurError } from '../actions/rest.actions';
 import { Environment, RemoteEnv } from '../models/environment';
 import { EnvironmentService } from '../services/environment.service';
 import { deepMerge } from './object-utils';
@@ -15,25 +14,37 @@ export function getRemoteEnv(injector: Injector, environment: Partial<Environmen
   if (!url) return Promise.resolve();
 
   const http = injector.get(HttpClient);
-  const store = injector.get(Store);
 
   return http
     .request<Environment>(method, url, { headers })
     .pipe(
-      catchError(err => store.dispatch(new RestOccurError(err))), // TODO: Condiser get handle function from a provider
-      tap(env => environmentService.setState(mergeEnvironments(environment, env, remoteEnv))),
+      catchError(err => {
+        if (isDevMode()) {
+          console.warn(
+            `[ABP Environment] Failed to fetch remote environment from "${url}". ` +
+              `Error: ${err.message || err}\n` +
+              `See https://abp.io/docs/latest/framework/ui/angular/environment#example-remoteenv-configuration for configuration details.`,
+          );
+        }
+        return of(null);
+      }),
+      tap(env =>
+        environmentService.setState(
+          mergeEnvironments(environment, env || ({} as Environment), remoteEnv as RemoteEnv),
+        ),
+      ),
     )
     .toPromise();
 }
 
 function mergeEnvironments(
   local: Partial<Environment>,
-  remote: any,
+  remote: Environment,
   config: RemoteEnv,
 ): Environment {
   switch (config.mergeStrategy) {
     case 'deepmerge':
-      return deepMerge(local, remote);
+      return deepMerge(local, remote) as Environment;
     case 'overwrite':
     case null:
     case undefined:

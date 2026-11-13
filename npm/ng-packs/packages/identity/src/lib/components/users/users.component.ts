@@ -1,43 +1,64 @@
-import { ListService } from '@abp/ng.core';
-import { ePermissionManagementComponents } from '@abp/ng.permission-management';
-import { Confirmation, ConfirmationService } from '@abp/ng.theme.shared';
 import {
-  EXTENSIONS_IDENTIFIER,
-  FormPropData,
-  generateFormFromProps,
-} from '@abp/ng.theme.shared/extensions';
-import {
-  Component,
-  Injector,
-  OnInit,
-  TemplateRef,
-  TrackByFunction,
-  ViewChild,
-} from '@angular/core';
-import { AbstractControl, FormArray, FormBuilder, FormGroup } from '@angular/forms';
-import { Select, Store } from '@ngxs/store';
-import { Observable } from 'rxjs';
-import { finalize, pluck, switchMap, take } from 'rxjs/operators';
-import snq from 'snq';
-import {
-  CreateUser,
-  DeleteUser,
-  GetUserById,
-  GetUserRoles,
-  GetUsers,
-  UpdateUser,
-} from '../../actions/identity.actions';
-import { eIdentityComponents } from '../../enums/components';
-import { Identity } from '../../models/identity';
-import { IdentityUserService } from '../../proxy/identity/identity-user.service';
+  InitDirective,
+  ListService,
+  LocalizationPipe,
+  PagedResultDto,
+  ReplaceableTemplateDirective,
+} from '@abp/ng.core';
 import {
   GetIdentityUsersInput,
   IdentityRoleDto,
   IdentityUserDto,
-} from '../../proxy/identity/models';
-import { IdentityState } from '../../states/identity.state';
+  IdentityUserService,
+} from '@abp/ng.identity/proxy';
+import {
+  ePermissionManagementComponents,
+  PermissionManagementComponent,
+} from '@abp/ng.permission-management';
+import {
+  ButtonComponent,
+  Confirmation,
+  ConfirmationService,
+  eFormComponets,
+  FormCheckboxComponent,
+  ModalCloseDirective,
+  ModalComponent,
+  ToasterService,
+} from '@abp/ng.theme.shared';
+import {
+  ExtensibleFormComponent,
+  ExtensibleTableComponent,
+  EXTENSIONS_IDENTIFIER,
+  FormPropData,
+  generateFormFromProps,
+} from '@abp/ng.components/extensible';
+import {
+  Component,
+  inject,
+  Injector,
+  signal,
+  TemplateRef,
+  TrackByFunction,
+  viewChild,
+  ChangeDetectionStrategy,
+} from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import {
+  AbstractControl,
+  FormsModule,
+  ReactiveFormsModule,
+  UntypedFormArray,
+  UntypedFormBuilder,
+  UntypedFormGroup,
+} from '@angular/forms';
+import { finalize, switchMap, tap } from 'rxjs/operators';
+import { eIdentityComponents } from '../../enums/components';
+import { PageComponent } from '@abp/ng.components/page';
+import { NgbDropdownModule, NgbNavModule } from '@ng-bootstrap/ng-bootstrap';
+import { NgxValidateCoreModule } from '@ngx-validate/core';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'abp-users',
   templateUrl: './users.component.html',
   providers: [
@@ -47,84 +68,105 @@ import { IdentityState } from '../../states/identity.state';
       useValue: eIdentityComponents.Users,
     },
   ],
+  imports: [
+    ReactiveFormsModule,
+    FormsModule,
+    PermissionManagementComponent,
+    PageComponent,
+    NgbDropdownModule,
+    NgbNavModule,
+    NgxValidateCoreModule,
+    LocalizationPipe,
+    ExtensibleTableComponent,
+    ModalComponent,
+    ExtensibleFormComponent,
+    FormCheckboxComponent,
+    ButtonComponent,
+    ReplaceableTemplateDirective,
+    ModalCloseDirective,
+    InitDirective,
+  ],
 })
-export class UsersComponent implements OnInit {
-  @Select(IdentityState.getUsers)
-  data$: Observable<IdentityUserDto[]>;
+export class UsersComponent {
+  protected readonly list = inject(ListService<GetIdentityUsersInput>);
+  protected readonly confirmationService = inject(ConfirmationService);
+  protected readonly service = inject(IdentityUserService);
+  protected readonly toasterService = inject(ToasterService);
+  private readonly fb = inject(UntypedFormBuilder);
+  private readonly injector = inject(Injector);
 
-  @Select(IdentityState.getUsersTotalCount)
-  totalCount$: Observable<number>;
+  readonly data = toSignal(
+    this.list.hookToQuery(query => this.service.getList(query)),
+    {
+      initialValue: { items: [], totalCount: 0 } as PagedResultDto<IdentityUserDto>,
+    },
+  );
 
-  @ViewChild('modalContent', { static: false })
-  modalContent: TemplateRef<any>;
+  readonly modalContent = viewChild.required<TemplateRef<any>>('modalContent');
 
-  form: FormGroup;
+  form!: UntypedFormGroup;
 
-  selected: IdentityUserDto;
+  selected?: IdentityUserDto;
 
-  selectedUserRoles: IdentityRoleDto[];
+  selectedTab = 'user-info';
 
-  roles: IdentityRoleDto[];
+  selectedUserRoles?: IdentityRoleDto[];
 
-  visiblePermissions = false;
+  readonly roles = signal<IdentityRoleDto[]>([]);
 
-  providerKey: string;
+  readonly visiblePermissions = signal(false);
 
-  isModalVisible: boolean;
+  providerKey?: string;
 
-  modalBusy = false;
+  readonly isModalVisible = signal(false);
+
+  readonly modalBusy = signal(false);
 
   permissionManagementKey = ePermissionManagementComponents.PermissionManagement;
 
+  entityDisplayName: string;
+
+  inputKey = eFormComponets.FormCheckboxComponent;
+
   trackByFn: TrackByFunction<AbstractControl> = (index, item) => Object.keys(item)[0] || index;
 
-  onVisiblePermissionChange = event => {
-    this.visiblePermissions = event;
+  onVisiblePermissionChange = (event: boolean) => {
+    this.visiblePermissions.set(event);
   };
 
-  get roleGroups(): FormGroup[] {
-    return snq(() => (this.form.get('roleNames') as FormArray).controls as FormGroup[], []);
-  }
-
-  constructor(
-    public readonly list: ListService<GetIdentityUsersInput>,
-    protected confirmationService: ConfirmationService,
-    protected userService: IdentityUserService,
-    protected fb: FormBuilder,
-    protected store: Store,
-    protected injector: Injector,
-  ) {}
-
-  ngOnInit() {
-    this.hookToQuery();
+  get roleGroups(): UntypedFormGroup[] {
+    return ((this.form.get('roleNames') as UntypedFormArray)?.controls as UntypedFormGroup[]) || [];
   }
 
   buildForm() {
     const data = new FormPropData(this.injector, this.selected);
     this.form = generateFormFromProps(data);
 
-    this.userService.getAssignableRoles().subscribe(({ items }) => {
-      this.roles = items;
-      this.form.addControl(
-        'roleNames',
-        this.fb.array(
-          this.roles.map(role =>
-            this.fb.group({
-              [role.name]: [
-                this.selected.id
-                  ? !!snq(() => this.selectedUserRoles.find(userRole => userRole.id === role.id))
-                  : role.isDefault,
-              ],
-            }),
+    this.service.getAssignableRoles().subscribe(({ items }) => {
+      this.roles.set(items);
+      if (items?.length) {
+        this.form.addControl(
+          'roleNames',
+          this.fb.array(
+            items.map(role =>
+              this.fb.group({
+                [role.name as string]: [
+                  this.selected?.id
+                    ? !!this.selectedUserRoles?.find(userRole => userRole.id === role.id)
+                    : role.isDefault,
+                ],
+              }),
+            ),
           ),
-        ),
-      );
+        );
+      }
     });
   }
 
   openModal() {
+    this.selectedTab = 'user-info';
     this.buildForm();
-    this.isModalVisible = true;
+    this.isModalVisible.set(true);
   }
 
   add() {
@@ -134,48 +176,42 @@ export class UsersComponent implements OnInit {
   }
 
   edit(id: string) {
-    this.store
-      .dispatch(new GetUserById(id))
+    this.service
+      .get(id)
       .pipe(
-        switchMap(() => this.store.dispatch(new GetUserRoles(id))),
-        pluck('IdentityState'),
-        take(1),
+        tap(user => (this.selected = user)),
+        switchMap(() => this.service.getRoles(id)),
       )
-      .subscribe((state: Identity.State) => {
-        this.selected = state.selectedUser;
-        this.selectedUserRoles = state.selectedUserRoles || [];
+      .subscribe(userRole => {
+        this.selectedUserRoles = userRole.items || [];
         this.openModal();
       });
   }
 
   save() {
-    if (!this.form.valid || this.modalBusy) return;
-    this.modalBusy = true;
+    if (!this.form.valid || this.modalBusy()) return;
+    this.modalBusy.set(true);
 
-    const { roleNames } = this.form.value;
-    const mappedRoleNames = snq(
-      () =>
-        roleNames.filter(role => !!role[Object.keys(role)[0]]).map(role => Object.keys(role)[0]),
-      [],
-    );
+    const { roleNames = [] } = this.form.value;
+    const mappedRoleNames =
+      roleNames
+        .filter((role: { [key: string]: any }) => !!role[Object.keys(role)[0]])
+        .map((role: { [key: string]: any }) => Object.keys(role)[0]) || [];
 
-    this.store
-      .dispatch(
-        this.selected.id
-          ? new UpdateUser({
-              ...this.selected,
-              ...this.form.value,
-              id: this.selected.id,
-              roleNames: mappedRoleNames,
-            })
-          : new CreateUser({
-              ...this.form.value,
-              roleNames: mappedRoleNames,
-            }),
-      )
-      .pipe(finalize(() => (this.modalBusy = false)))
+    const { id } = this.selected || {};
+
+    (id
+      ? this.service.update(id, {
+          ...this.selected,
+          ...this.form.value,
+          roleNames: mappedRoleNames,
+        })
+      : this.service.create({ ...this.form.value, roleNames: mappedRoleNames })
+    )
+      .pipe(finalize(() => this.modalBusy.set(false)))
       .subscribe(() => {
-        this.isModalVisible = false;
+        this.isModalVisible.set(false);
+        this.toasterService.success('AbpUi::SavedSuccessfully');
         this.list.get();
       });
   }
@@ -187,25 +223,30 @@ export class UsersComponent implements OnInit {
       })
       .subscribe((status: Confirmation.Status) => {
         if (status === Confirmation.Status.confirm) {
-          this.store.dispatch(new DeleteUser(id)).subscribe(() => this.list.get());
+          this.service.delete(id).subscribe(() => {
+            this.toasterService.success('AbpUi::DeletedSuccessfully');
+            this.list.get();
+          });
         }
       });
   }
 
-  sort(data) {
-    const { prop, dir } = data.sorts[0];
+  sort(data: { sorts?: { prop: string; dir: string }[] } | { prop: string; dir: string }[]) {
+    const sorts = Array.isArray(data) ? data : data?.sorts;
+    if (!sorts?.length) {
+      return;
+    }
+
+    const { prop, dir } = sorts[0];
     this.list.sortKey = prop;
     this.list.sortOrder = dir;
   }
 
-  private hookToQuery() {
-    this.list.hookToQuery(query => this.store.dispatch(new GetUsers(query))).subscribe();
-  }
-
-  openPermissionsModal(providerKey: string) {
+  openPermissionsModal(providerKey: string, entityDisplayName?: string) {
     this.providerKey = providerKey;
+    this.entityDisplayName = entityDisplayName;
     setTimeout(() => {
-      this.visiblePermissions = true;
+      this.visiblePermissions.set(true);
     }, 0);
   }
 }

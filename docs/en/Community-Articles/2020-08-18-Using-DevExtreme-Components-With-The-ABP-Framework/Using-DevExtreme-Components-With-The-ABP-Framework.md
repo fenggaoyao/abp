@@ -1,4 +1,4 @@
-## Using DevExtreme Components With the ABP Framework
+# Using DevExtreme Components With the ABP Framework
 
 Hi, in this step by step article, I will show you how to integrate [DevExtreme](https://js.devexpress.com/) components into ABP Framework-based applications.
 
@@ -77,9 +77,11 @@ module.exports = {
 };
 ```
 
-Open your `DevExtremeSample.Web` project folder with a command line and run the `gulp` command. This command will copy the needed library files into the ``/wwwroot/libs/devextreme/` folder.
+Open your `DevExtremeSample.Web` project folder with a command line and run the `abp install-libs` command. This command will copy the needed library files into the `/wwwroot/libs/devextreme/` folder.
 
-![gulp](gulp.png)
+````bash
+abp install-libs
+````
 
 You can see `devextreme` folder inside the `wwwroot/libs`:
 

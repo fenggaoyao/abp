@@ -1,13 +1,49 @@
-﻿(function ($) {
+(function ($) {
     var l = abp.localization.getResource('AbpIdentity');
 
     var _identityUserAppService = volo.abp.identity.identityUser;
-    var _editModal = new abp.ModalManager(
-        abp.appPath + 'Identity/Users/EditModal'
-    );
-    var _createModal = new abp.ModalManager(
-        abp.appPath + 'Identity/Users/CreateModal'
-    );
+
+    var togglePasswordVisibility = function () {
+        $("#PasswordVisibilityButton").click(function (e) {
+            var button = $(this);
+            var passwordInput = button.parent().find("input");
+            if(!passwordInput) {
+                return;
+            }
+
+            var isRevealing = passwordInput.attr("type") === "password";
+            passwordInput.attr("type", isRevealing ? "text" : "password");
+            button.attr("aria-pressed", isRevealing);
+
+            var icon = button.find("i");
+            if(icon) {
+                icon.toggleClass("fa-eye-slash").toggleClass("fa-eye");
+            }
+        });
+    }
+    
+    abp.modals.createUser = function () {
+        var initModal = function (publicApi, args) {
+            togglePasswordVisibility();
+        };
+        return { initModal: initModal };
+    }
+    
+    abp.modals.editUser = function () {
+        var initModal = function (publicApi, args) {
+            togglePasswordVisibility();
+        };
+        return { initModal: initModal };
+    }
+    
+    var _editModal = new abp.ModalManager({
+        viewUrl: abp.appPath + 'Identity/Users/EditModal',
+        modalClass: "editUser"
+    });
+    var _createModal = new abp.ModalManager({
+        viewUrl: abp.appPath + 'Identity/Users/CreateModal',
+        modalClass: "createUser"
+    });
     var _permissionsModal = new abp.ModalManager(
         abp.appPath + 'AbpPermissionManagement/PermissionManagementModal'
     );
@@ -38,14 +74,15 @@
                             _permissionsModal.open({
                                 providerName: 'U',
                                 providerKey: data.record.id,
+                                providerKeyDisplayName: data.record.userName
                             });
                         },
                     },
                     {
                         text: l('Delete'),
-                        visible: abp.auth.isGranted(
-                            'AbpIdentity.Users.Delete'
-                        ),
+                        visible: function(data) {
+                            return abp.auth.isGranted('AbpIdentity.Users.Delete') && abp.currentUser.id !== data.id;
+                        },
                         confirmMessage: function (data) {
                             return l(
                                 'UserDeletionConfirmationMessage',
@@ -56,10 +93,11 @@
                             _identityUserAppService
                                 .delete(data.record.id)
                                 .then(function () {
-                                    _dataTable.ajax.reload();
+                                    _dataTable.ajax.reloadEx();
+                                    abp.notify.success(l('DeletedSuccessfully'));
                                 });
                         },
-                    } 
+                    }
                 ]
             );
         }
@@ -78,6 +116,17 @@
                     {
                         title: l('UserName'),
                         data: 'userName',
+                        render: function (data, type, row) {
+                            row.userName = $.fn.dataTable.render.text().display(row.userName);
+                            if (!row.isActive) {
+                                return  '<i data-toggle="tooltip" data-placement="top" title="' +
+                                    l('ThisUserIsNotActiveMessage') +
+                                    '" class="fa fa-ban text-danger"></i> ' +
+                                    '<span class="opc-65">' + row.userName + '</span>';
+                            }
+
+                            return row.userName;
+                        }
                     },
                     {
                         title: l('EmailAddress'),
@@ -92,13 +141,13 @@
         },
         0 //adds as the first contributor
     );
-    
+
     $(function () {
         var _$wrapper = $('#IdentityUsersWrapper');
         var _$table = _$wrapper.find('table');
         _dataTable = _$table.DataTable(
             abp.libs.datatables.normalizeConfiguration({
-                order: [[1, 'asc']],
+                order: [],
                 processing: true,
                 serverSide: true,
                 scrollX: true,
@@ -111,14 +160,14 @@
         );
 
         _createModal.onResult(function () {
-            _dataTable.ajax.reload();
+            _dataTable.ajax.reloadEx();
         });
 
         _editModal.onResult(function () {
-            _dataTable.ajax.reload();
+            _dataTable.ajax.reloadEx();
         });
 
-        _$wrapper.find('button[name=CreateUser]').click(function (e) {
+        $('#AbpContentToolbar button[name=CreateUser]').click(function (e) {
             e.preventDefault();
             _createModal.open();
         });

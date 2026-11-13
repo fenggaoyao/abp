@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Volo.Abp;
 using Volo.Abp.AspNetCore.Mvc.UI.Bootstrap.TagHelpers.Form;
 using Volo.Abp.AspNetCore.Mvc.UI.RazorPages;
+using Volo.Abp.Data;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Validation;
 using Volo.Docs.Admin.Projects;
 using Volo.Docs.Projects;
@@ -74,22 +76,22 @@ namespace Volo.Docs.Admin.Pages.Docs.Admin.Projects
         {
             GithubProject = ObjectMapper.Map<ProjectDto,EditGithubProjectViewModel>(dto);
 
-            GithubProject.GitHubAccessToken = (string) dto.ExtraProperties[nameof(GithubProject.GitHubAccessToken)];
-            GithubProject.GitHubRootUrl = (string) dto.ExtraProperties[nameof(GithubProject.GitHubRootUrl)];
-            GithubProject.GitHubUserAgent = (string) dto.ExtraProperties[nameof(GithubProject.GitHubUserAgent)];
+            GithubProject.GitHubAccessToken = dto.GetProperty<string>(nameof(GithubProject.GitHubAccessToken));
+            GithubProject.GitHubRootUrl = dto.GetProperty<string>(nameof(GithubProject.GitHubRootUrl));
+            GithubProject.GitHubUserAgent = dto.GetProperty<string>(nameof(GithubProject.GitHubUserAgent));
 
-            if (dto.ExtraProperties.ContainsKey(nameof(GithubProject.GithubVersionProviderSource)))
+            if (dto.HasProperty(nameof(GithubProject.GithubVersionProviderSource)))
             {
-                GithubProject.GithubVersionProviderSource = (GithubVersionProviderSource) (long) dto.ExtraProperties[nameof(GithubProject.GithubVersionProviderSource)];
+                GithubProject.GithubVersionProviderSource = dto.GetProperty<GithubVersionProviderSource>(nameof(GithubProject.GithubVersionProviderSource));
             }
 
-            if (dto.ExtraProperties.ContainsKey(nameof(GithubProject.VersionBranchPrefix)))
+            if (dto.HasProperty(nameof(GithubProject.VersionBranchPrefix)))
             {
-                GithubProject.VersionBranchPrefix = (string) dto.ExtraProperties[nameof(GithubProject.VersionBranchPrefix)];
+                GithubProject.VersionBranchPrefix = dto.GetProperty<string>(nameof(GithubProject.VersionBranchPrefix));
             }
         }
 
-        public abstract class EditProjectViewModelBase
+        public abstract class EditProjectViewModelBase : IHasConcurrencyStamp
         {
             [Required]
             [HiddenInput]
@@ -119,6 +121,9 @@ namespace Volo.Docs.Admin.Pages.Docs.Admin.Projects
 
             [DynamicStringLength(typeof(ProjectConsts), nameof(ProjectConsts.MaxLatestVersionBranchNameLength))]
             public string LatestVersionBranchName { get; set; }
+
+            [HiddenInput]
+            public string ConcurrencyStamp { get; set; }
         }
 
         public class EditGithubProjectViewModel : EditProjectViewModelBase

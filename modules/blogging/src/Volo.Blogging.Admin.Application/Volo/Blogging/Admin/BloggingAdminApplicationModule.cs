@@ -1,10 +1,8 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.Extensions.DependencyInjection;
-using Volo.Abp.AutoMapper;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Volo.Abp.Application;
+using Volo.Abp.Mapperly;
 using Volo.Abp.Caching;
 using Volo.Abp.Modularity;
-using Volo.Blogging.Comments;
-using Volo.Blogging.Posts;
 
 namespace Volo.Blogging.Admin
 {
@@ -12,16 +10,14 @@ namespace Volo.Blogging.Admin
         typeof(BloggingDomainModule),
         typeof(BloggingAdminApplicationContractsModule),
         typeof(AbpCachingModule),
-        typeof(AbpAutoMapperModule))]
+        typeof(AbpMapperlyModule),
+        typeof(AbpDddApplicationModule)
+        )]
     public class BloggingAdminApplicationModule : AbpModule
     {
         public override void ConfigureServices(ServiceConfigurationContext context)
         {
-            context.Services.AddAutoMapperObjectMapper<BloggingAdminApplicationModule>();
-            Configure<AbpAutoMapperOptions>(options =>
-            {
-                options.AddProfile<BloggingAdminApplicationAutoMapperProfile>(validate: true);
-            });
+            context.Services.AddMapperlyObjectMapper<BloggingAdminApplicationModule>();
         }
     }
 }
